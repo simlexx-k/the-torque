@@ -13,6 +13,7 @@ SALE_TERMS = re.compile(
     r"\b(for\s*sale|selling|available|price|ksh|kes|million|m\b|negotiable|mileage|km\b|cc\b|automatic|manual|diesel|petrol|hybrid|unit|sold|reserved)\b",
     re.IGNORECASE,
 )
+PRICE_SHORTHAND = re.compile(r"\b\d+(?:\.\d+)?\s*[km]\b", re.IGNORECASE)
 VEHICLE_TERMS = re.compile(
     r"\b(toyota|volkswagen|vw|mazda|subaru|mercedes|benz|bmw|audi|nissan|honda|lexus|ford|isuzu|mitsubishi|suzuki|volvo|peugeot|land\s*rover|range\s*rover|passat|prado|harrier|forester|cx-5|cx5|vitz|fit|note|tiida|premio|pajero|hilux)\b",
     re.IGNORECASE,
@@ -23,7 +24,9 @@ def should_enrich(text: str, image_urls: Iterable[str]) -> bool:
     images = list(image_urls)
     if images:
         return True
-    return bool(SALE_TERMS.search(text) and VEHICLE_TERMS.search(text))
+    has_vehicle = bool(VEHICLE_TERMS.search(text))
+    has_sale_signal = bool(SALE_TERMS.search(text) or PRICE_SHORTHAND.search(text))
+    return has_vehicle and has_sale_signal
 
 
 def _analysis_prompt(text: str) -> str:
@@ -60,8 +63,6 @@ class GeminiVehicleEnricher:
         mime_type = response.headers.get("content-type", "image/jpeg").split(";", 1)[0].strip().lower()
         if not mime_type.startswith("image/"):
             return None
-        # Avoid unexpectedly huge upstream media payloads. X listing photos are
-        # normally well below this threshold.
         if len(response.content) > 12 * 1024 * 1024:
             return None
         return {
@@ -84,8 +85,6 @@ class GeminiVehicleEnricher:
                     if part is not None:
                         parts.append(part)
                 except httpx.HTTPError:
-                    # One unavailable seller image should not prevent analysis of
-                    # the remaining text/media.
                     continue
 
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
@@ -175,7 +174,7 @@ class VehicleEnricher:
             self.backend: EnrichmentBackend = GeminiVehicleEnricher(settings)
         elif settings.ai_provider == "openai":
             self.backend = OpenAIVehicleEnricher(settings)
-        else:  # guarded by Settings validation, retained defensively
+        else:
             raise RuntimeError(f"Unsupported AI provider: {settings.ai_provider}")
 
     @property
