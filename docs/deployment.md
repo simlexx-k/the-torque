@@ -27,13 +27,22 @@ The browser never needs the VPS IP, backend hostname internals, or backend secre
 
 ## 1. VPS environment
 
-Copy `.env.example` to `.env` and configure the runtime secrets. At minimum:
+Edit the existing production `.env` and configure the runtime secrets. Do not overwrite an existing `.env` with `.env.example` because it may already contain X, database, admin and tunnel credentials.
+
+At minimum:
 
 ```env
 POSTGRES_PASSWORD=...
 X_BEARER_TOKEN=...
 X_TARGET_USERNAME=...
-OPENAI_API_KEY=...
+
+AI_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.1-flash-lite
+AI_MAX_IMAGES=6
+AI_RETRY_BATCH_SIZE=10
+AI_RETRY_MAX_ATTEMPTS=5
+
 ADMIN_API_KEY=...
 CLOUDFLARED_TOKEN=...
 
@@ -41,9 +50,31 @@ TRUSTED_HOSTS=torque-api.a3slabs.co.ke,127.0.0.1,localhost
 CORS_ALLOWED_ORIGINS=
 ```
 
+OpenAI is not required for the default deployment. `OPENAI_API_KEY`, `OPENAI_MODEL` and `OPENAI_IMAGE_DETAIL` are retained only for an intentional backwards-compatible `AI_PROVIDER=openai` deployment.
+
 Never commit `.env`. It is ignored by Git.
 
 If a Cloudflare Tunnel token has been pasted into chat, logs, tickets, source code, or another place outside the VPS secret store, rotate the tunnel token in Cloudflare before using it in production.
+
+### Enrichment recovery
+
+Candidate posts are always persisted before enrichment. If Gemini is unavailable, returns invalid structured output, or an image cannot be processed, the post remains visible in `/api/posts` with an enrichment state rather than disappearing from the system.
+
+The scheduler retries `error` and `waiting_for_ai_key` posts in bounded batches before polling X for new posts. The relevant controls are:
+
+```env
+AI_RETRY_BATCH_SIZE=10
+AI_RETRY_MAX_ATTEMPTS=5
+```
+
+Operator recovery endpoints are protected by `X-Admin-Key`:
+
+```text
+POST /api/enrichment/retry-failed?limit=25
+POST /api/posts/{post_id}/retry-enrichment
+```
+
+Retry metadata is stored in the existing post `ai_payload` JSON, so this feature does not require a PostgreSQL schema migration.
 
 ## 2. Docker Compose stack
 
@@ -129,6 +160,7 @@ Frontend code calls same-origin routes such as:
 
 ```text
 /api/torque/overview
+/api/torque/posts
 /api/torque/listings
 /api/torque/listings/123
 ```
@@ -137,20 +169,22 @@ Vercel resolves those through the Next.js route handler, which calls:
 
 ```text
 https://torque-api.a3slabs.co.ke/api/overview
+https://torque-api.a3slabs.co.ke/api/posts
 https://torque-api.a3slabs.co.ke/api/listings
 https://torque-api.a3slabs.co.ke/api/listings/123
 ```
 
-Manual ingestion remains protected. `POST /api/ingest/run` requires `X-Admin-Key` and is not exposed as a public frontend action.
+Manual ingestion and enrichment recovery remain protected. `POST /api/ingest/run`, `POST /api/enrichment/retry-failed`, and `POST /api/posts/{id}/retry-enrichment` require `X-Admin-Key` and are not exposed as public frontend actions.
 
 ## 6. Production checks
 
 - `docker compose ps` shows `db` and `app` healthy and `cloudflared` running.
-- The in-container `/health` check succeeds.
+- The in-container `/health` check succeeds and reports `ai_provider=gemini` plus `ai_configured=true` after the Gemini key is configured.
 - `curl https://torque-api.a3slabs.co.ke/health` succeeds through Cloudflare.
+- The frontend `/signals` page shows captured posts even if enrichment has failed or is waiting.
 - Cloudflare's published route points to `http://app:8000`.
 - VPS firewall does not expose port 8000 publicly.
 - PostgreSQL has no published host port.
 - `TRUSTED_HOSTS` contains `torque-api.a3slabs.co.ke`, `127.0.0.1`, and `localhost`.
-- X, OpenAI, PostgreSQL, admin, and tunnel credentials exist only in the VPS `.env` file or an equivalent secret store.
+- X, Gemini, PostgreSQL, admin, and tunnel credentials exist only in the VPS `.env` file or an equivalent secret store.
 - Vercel stores only `TORQUE_API_BASE_URL` and, if Access is enabled, the Cloudflare Access service-token credentials.
