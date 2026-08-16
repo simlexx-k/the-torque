@@ -8,13 +8,15 @@ import "./enhancements.css";
 import "./product.css";
 import "./signals.css";
 import "./home.css";
+import "./footer.css";
+import "./gallery.css";
 
 export const metadata: Metadata = {
   title: {
     default: "The Torque — Vehicle Listings",
     template: "%s — The Torque",
   },
-  description: "Browse current vehicle listings with seller photos, structured specifications and source-linked details.",
+  description: "Browse current vehicle listings with seller photos, asking prices and key specifications in one place.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

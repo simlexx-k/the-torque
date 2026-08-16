@@ -92,9 +92,9 @@ export default function HomeCatalog() {
     <main className="home-catalog">
       <section className="catalog-entry">
         <div className="catalog-entry-copy">
-          <span className="catalog-eyebrow"><CarFront size={15} /> VEHICLES FOR SALE</span>
-          <h1>Find the car.<br/><em>Skip the dashboard.</em></h1>
-          <p>Current vehicle listings, seller photos and structured specifications in one fast browse.</p>
+          <span className="catalog-eyebrow"><CarFront size={15} /> CURRENT SELLER LISTINGS</span>
+          <h1>See what&apos;s for sale.<br/><em>Compare it properly.</em></h1>
+          <p>Browse seller-posted vehicles with asking price, mileage, key specifications and original photos kept together.</p>
         </div>
 
         <div className="catalog-search-panel">
@@ -103,7 +103,7 @@ export default function HomeCatalog() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search Toyota, Passat, SUV, Eldoret…"
+              placeholder="Search make, model, body style or location…"
               aria-label="Search current vehicle listings"
             />
             {query && (
@@ -128,17 +128,17 @@ export default function HomeCatalog() {
         </div>
 
         <div className="catalog-snapshot" aria-label="Inventory snapshot">
-          <div><strong>{availableCount}</strong><span>Available now</span></div>
-          <div><strong>{priceDropCount}</strong><span>Price drops</span></div>
-          <div><strong>{makeCount}</strong><span>Makes listed</span></div>
+          <div><strong>{availableCount}</strong><span>available</span></div>
+          <div><strong>{priceDropCount}</strong><span>with price drops</span></div>
+          <div><strong>{makeCount}</strong><span>makes represented</span></div>
         </div>
       </section>
 
       <section className="catalog-listings" aria-labelledby="latest-listings-heading">
         <div className="catalog-section-head">
           <div>
-            <span className="catalog-section-kicker">CURRENT INVENTORY</span>
-            <h2 id="latest-listings-heading">{filtersActive ? "Matching listings" : "Latest listings"}</h2>
+            <span className="catalog-section-kicker">CURRENT LISTINGS</span>
+            <h2 id="latest-listings-heading">{filtersActive ? "Vehicles matching your search" : "Recently added vehicles"}</h2>
           </div>
           <div className="catalog-head-actions">
             {filtersActive && (
@@ -147,14 +147,14 @@ export default function HomeCatalog() {
               </button>
             )}
             <Link href="/inventory" className="catalog-all-link">
-              Browse all listings <ArrowRight size={16} />
+              View all listings <ArrowRight size={16} />
             </Link>
           </div>
         </div>
 
         <div className="catalog-result-line">
           <span><SlidersHorizontal size={14} /> {filtered.length} {filtered.length === 1 ? "vehicle" : "vehicles"}</span>
-          {listingsQuery.isFetching && !listingsQuery.isPending && <span className="catalog-refreshing">Updating…</span>}
+          {listingsQuery.isFetching && !listingsQuery.isPending && <span className="catalog-refreshing">Checking for updates…</span>}
         </div>
 
         {listingsQuery.isPending ? (
@@ -166,8 +166,8 @@ export default function HomeCatalog() {
         ) : listingsQuery.error ? (
           <div className="catalog-state">
             <CarFront size={30} />
-            <h3>Listings are temporarily unavailable.</h3>
-            <p>Please try again shortly.</p>
+            <h3>We couldn&apos;t load the listings.</h3>
+            <p>Try again in a moment.</p>
             <button type="button" onClick={() => listingsQuery.refetch()}>Try again</button>
           </div>
         ) : visible.length ? (
@@ -181,29 +181,29 @@ export default function HomeCatalog() {
         ) : (
           <div className="catalog-state">
             <Search size={30} />
-            <h3>No vehicles match that search.</h3>
-            <p>Clear the filters or browse the full inventory.</p>
+            <h3>No vehicles match those filters.</h3>
+            <p>Clear the filters or search the full listings page.</p>
             <button type="button" onClick={reset}>Clear filters</button>
           </div>
         )}
 
         {filtered.length > visible.length && (
           <div className="catalog-more-row">
-            <Link href="/inventory">See all {filtered.length} listings <ChevronRight size={17} /></Link>
+            <Link href="/inventory">View all {filtered.length} listings <ChevronRight size={17} /></Link>
           </div>
         )}
       </section>
 
-      <section className="catalog-confidence" aria-label="What you get with each listing">
+      <section className="catalog-confidence" aria-label="Listing information">
         <div>
           <CheckCircle2 size={18} />
-          <span><strong>Seller-source media</strong><small>Original listing photos stay attached to the vehicle record.</small></span>
+          <span><strong>Original seller photos</strong><small>Photos stay connected to the listing they came from.</small></span>
         </div>
         <div>
           <Tag size={18} />
-          <span><strong>Structured details</strong><small>Price, mileage, specification and location are easier to compare.</small></span>
+          <span><strong>Key details together</strong><small>Price, mileage, specifications and location are easier to review side by side.</small></span>
         </div>
-        <Link href="/market">Explore market view <ArrowRight size={15} /></Link>
+        <Link href="/market">View market snapshot <ArrowRight size={15} /></Link>
       </section>
     </main>
   );
