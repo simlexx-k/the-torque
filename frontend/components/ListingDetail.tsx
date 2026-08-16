@@ -1,36 +1,86 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import useEmblaCarousel from "embla-carousel-react";
+import { motion, useReducedMotion } from "motion/react";
+import { Tooltip } from "radix-ui";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  Gauge,
+  MapPin,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import type { Listing } from "@/lib/types";
+import { fetchJson } from "@/lib/api";
 import { confidenceToPercent, formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
-import { ArrowIcon, ExternalIcon, PinIcon, RoadIcon, ShieldIcon, SparkIcon } from "./Icons";
 
 export default function ListingDetail({ id }: { id: string }) {
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeImage, setActiveImage] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const listingQuery = useQuery({
+    queryKey: ["listing", id],
+    queryFn: () => fetchJson<Listing>(`/api/torque/listings/${id}`),
+  });
+  const listing = listingQuery.data ?? null;
+  const images = useMemo(
+    () => listing?.post?.media?.map((item) => item.url || item.preview_image_url).filter(Boolean) as string[] || [],
+    [listing],
+  );
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: images.length > 1, align: "start", skipSnaps: false });
+  const [selectedImage, setSelectedImage] = useState(0);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedImage(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
 
   useEffect(() => {
-    const run = async () => {
-      try {
-        const response = await fetch(`/api/torque/listings/${id}`, { cache: "no-store" });
-        if (!response.ok) throw new Error(response.status === 404 ? "Listing not found." : "Unable to load listing intelligence.");
-        setListing(await response.json());
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load listing.");
-      } finally {
-        setLoading(false);
-      }
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
     };
-    void run();
-  }, [id]);
+  }, [emblaApi, onSelect]);
 
-  const images = useMemo(() => listing?.post?.media?.map((item) => item.url || item.preview_image_url).filter(Boolean) as string[] || [], [listing]);
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.reInit({ loop: images.length > 1, align: "start", skipSnaps: false });
+    emblaApi.scrollTo(0, true);
+    setSelectedImage(0);
+  }, [emblaApi, images.length]);
 
-  if (loading) return <div className="detail-loading"><div className="state-radar"><span /></div><strong>Decoding vehicle intelligence…</strong></div>;
-  if (error || !listing) return <div className="detail-loading"><strong>{error || "Listing unavailable."}</strong><Link href="/">Return to inventory</Link></div>;
+  const copyListingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Listing link copied.");
+    } catch {
+      toast.error("Could not copy the listing link.");
+    }
+  };
+
+  if (listingQuery.isPending) {
+    return <div className="detail-loading"><div className="state-radar"><span /></div><strong>Decoding vehicle intelligence…</strong></div>;
+  }
+  if (listingQuery.error || !listing) {
+    return (
+      <div className="detail-loading">
+        <strong>{listingQuery.error instanceof Error ? listingQuery.error.message : "Listing unavailable."}</strong>
+        <Link href="/">Return to inventory</Link>
+      </div>
+    );
+  }
 
   const specs = [
     ["Year", listing.year],
@@ -48,19 +98,67 @@ export default function ListingDetail({ id }: { id: string }) {
   return (
     <main className="detail-shell">
       <header className="topbar detail-topbar">
-        <Link href="/" className="brand"><span className="brand-mark"><span /></span><span className="brand-copy"><strong>THE TORQUE</strong><small>VEHICLE INTELLIGENCE</small></span></Link>
-        <Link href="/" className="back-link">← Back to live inventory</Link>
+        <Link href="/" className="brand">
+          <span className="brand-mark"><span /></span>
+          <span className="brand-copy"><strong>THE TORQUE</strong><small>VEHICLE INTELLIGENCE</small></span>
+        </Link>
+        <Link href="/" className="back-link"><ArrowLeft size={16} /> Back to live inventory</Link>
       </header>
 
-      <section className="detail-hero">
-        <div className="detail-gallery">
-          <div className="detail-main-image">
-            {images[activeImage] ? <img src={images[activeImage]} alt={vehicleTitle(listing)} /> : <div className="vehicle-placeholder large"><span>THE TORQUE</span><div className="placeholder-orbit" /></div>}
-            <div className="image-vignette" />
-            <span className={`status-chip status-${listing.status.toLowerCase()}`}>{listing.status.replaceAll("_", " ")}</span>
-            <div className="frame-index"><span>FRAME</span><strong>{String(activeImage + 1).padStart(2, "0")}</strong><small>/ {String(Math.max(images.length, 1)).padStart(2, "0")}</small></div>
-          </div>
-          {images.length > 1 && <div className="thumbnail-strip">{images.map((image, index) => <button key={`${image}-${index}`} className={index === activeImage ? "active" : ""} onClick={() => setActiveImage(index)}><img src={image} alt={`Vehicle frame ${index + 1}`} /></button>)}</div>}
+      <motion.section
+        className="detail-hero"
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="detail-gallery enhanced-gallery">
+          {images.length ? (
+            <div className="embla-gallery">
+              <div className="embla-viewport" ref={emblaRef}>
+                <div className="embla-container">
+                  {images.map((image, index) => (
+                    <div className="embla-slide" key={`${image}-${index}`}>
+                      <div className="detail-main-image">
+                        <img src={image} alt={`${vehicleTitle(listing)} — frame ${index + 1}`} />
+                        <div className="image-vignette" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <span className={`status-chip status-${listing.status.toLowerCase()}`}>{listing.status.replaceAll("_", " ")}</span>
+              <div className="frame-index"><span>FRAME</span><strong>{String(selectedImage + 1).padStart(2, "0")}</strong><small>/ {String(images.length).padStart(2, "0")}</small></div>
+
+              {images.length > 1 && (
+                <div className="gallery-controls">
+                  <button type="button" onClick={() => emblaApi?.scrollPrev()} aria-label="Previous vehicle image"><ChevronLeft size={19} /></button>
+                  <button type="button" onClick={() => emblaApi?.scrollNext()} aria-label="Next vehicle image"><ChevronRight size={19} /></button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="detail-main-image">
+              <div className="vehicle-placeholder large"><span>THE TORQUE</span><div className="placeholder-orbit" /></div>
+              <span className={`status-chip status-${listing.status.toLowerCase()}`}>{listing.status.replaceAll("_", " ")}</span>
+            </div>
+          )}
+
+          {images.length > 1 && (
+            <div className="thumbnail-strip enhanced-thumbnails">
+              {images.map((image, index) => (
+                <button
+                  key={`${image}-${index}`}
+                  className={index === selectedImage ? "active" : ""}
+                  onClick={() => emblaApi?.scrollTo(index)}
+                  aria-label={`Show vehicle frame ${index + 1}`}
+                  aria-current={index === selectedImage ? "true" : undefined}
+                >
+                  <img src={image} alt="" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="detail-summary">
@@ -68,8 +166,8 @@ export default function ListingDetail({ id }: { id: string }) {
           <h1>{vehicleTitle(listing)}</h1>
           <p className="detail-price">{formatPrice(listing.price, listing.currency)}</p>
           <div className="detail-facts">
-            <span><RoadIcon size={18}/><small>ODOMETER</small><strong>{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Not stated"}</strong></span>
-            <span><PinIcon size={18}/><small>LOCATION</small><strong>{listing.location || "Not stated"}</strong></span>
+            <span><Gauge size={18}/><small>ODOMETER</small><strong>{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Not stated"}</strong></span>
+            <span><MapPin size={18}/><small>LOCATION</small><strong>{listing.location || "Not stated"}</strong></span>
           </div>
 
           <div className="detail-description">
@@ -77,12 +175,28 @@ export default function ListingDetail({ id }: { id: string }) {
             <p>{listing.post?.text || "No source description was stored for this record."}</p>
           </div>
 
-          <a className="source-button" href={listing.x_url} target="_blank" rel="noreferrer">Open original X post <ExternalIcon size={17}/></a>
-          <p className="source-disclaimer"><ShieldIcon size={16}/> Seller claims, AI observations and reference specifications are deliberately kept separate.</p>
+          <div className="detail-source-actions">
+            <a className="source-button" href={listing.x_url} target="_blank" rel="noreferrer">Open original X post <ExternalLink size={17}/></a>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button type="button" className="copy-link-button" onClick={copyListingLink} aria-label="Copy listing link"><Copy size={17}/></button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content className="torque-tooltip" sideOffset={8}>Copy this intelligence file link<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+          </div>
+          <p className="source-disclaimer"><ShieldCheck size={16}/> Seller claims, AI observations and reference specifications are deliberately kept separate.</p>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="detail-grid-section">
+      <motion.section
+        className="detail-grid-section"
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: reduceMotion ? 0 : 0.45 }}
+      >
         <div className="spec-panel">
           <div className="panel-title"><div><small>01 / MACHINE</small><h2>Vehicle specification</h2></div><span>STRUCTURED DATA</span></div>
           <div className="spec-grid">
@@ -91,18 +205,38 @@ export default function ListingDetail({ id }: { id: string }) {
         </div>
 
         <div className="evidence-panel">
-          <div className="panel-title"><div><small>02 / PROVENANCE</small><h2>Evidence map</h2></div><SparkIcon size={20}/></div>
+          <div className="panel-title"><div><small>02 / PROVENANCE</small><h2>Evidence map</h2></div><Sparkles size={20}/></div>
           <div className="evidence-list">
             {evidenceEntries.length ? evidenceEntries.map(([key, raw]) => {
               const value = typeof raw === "object" && raw ? raw as Record<string, unknown> : { value: raw };
               const confidence = confidenceToPercent(value.confidence);
-              return <div className="evidence-row" key={key}><span><small>{key.replaceAll("_", " ")}</small><strong>{String(value.value ?? "Observed")}</strong></span><span className="evidence-meta"><i>{String(value.source || "unspecified").replaceAll("_", " ")}</i>{confidence && <b>{confidence}</b>}</span></div>;
+              const source = String(value.source || "unspecified").replaceAll("_", " ");
+              return (
+                <div className="evidence-row" key={key}>
+                  <span><small>{key.replaceAll("_", " ")}</small><strong>{String(value.value ?? "Observed")}</strong></span>
+                  <span className="evidence-meta">
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild><i className="evidence-source-chip" tabIndex={0}>{source}</i></Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content className="torque-tooltip" sideOffset={8}>Provenance: {source}<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                    {confidence && <b>{confidence}</b>}
+                  </span>
+                </div>
+              );
             }) : <p className="muted">The enrichment model has not attached field-level evidence to this listing yet.</p>}
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="detail-grid-section secondary">
+      <motion.section
+        className="detail-grid-section secondary"
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: reduceMotion ? 0 : 0.45 }}
+      >
         <div className="spec-panel">
           <div className="panel-title"><div><small>03 / EQUIPMENT</small><h2>Detected features</h2></div><span>{listing.features?.length || 0} SIGNALS</span></div>
           <div className="feature-cloud">
@@ -115,11 +249,11 @@ export default function ListingDetail({ id }: { id: string }) {
             {listing.observations?.length ? listing.observations.map((observation, index) => <li key={index}><i>{String(index + 1).padStart(2, "0")}</i><span>{observation}</span></li>) : <li><i>—</i><span>No visual observations recorded.</span></li>}
           </ol>
         </div>
-      </section>
+      </motion.section>
 
       <section className="detail-cta">
         <div><small>NEXT SIGNAL</small><h2>Return to the market feed.</h2><p>Compare this vehicle against every listing indexed by The Torque.</p></div>
-        <Link className="primary-action" href="/">View live inventory <ArrowIcon size={18}/></Link>
+        <Link className="primary-action" href="/">View live inventory <ArrowUpRight size={18}/></Link>
       </section>
     </main>
   );
