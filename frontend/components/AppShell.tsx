@@ -22,6 +22,7 @@ import {
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { vehicleTitle } from "@/lib/format";
+import { listingCollectionKey, listingHref, listingShortReference } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 const primaryNav = [
@@ -199,9 +200,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <section>
                 <small className="command-section-label">VEHICLES</small>
                 {commandVehicles.length ? commandVehicles.map((listing) => (
-                  <button type="button" key={listing.id} onClick={() => navigate(`/listings/${listing.id}`)}>
+                  <button type="button" key={listingCollectionKey(listing)} onClick={() => navigate(listingHref(listing))}>
                     <span><CarFront size={17} />{vehicleTitle(listing)}</span>
-                    <small>{listing.location || listing.status || `#${listing.id}`}</small>
+                    <small>{listing.location || `Ref ${listingShortReference(listing)}`}</small>
                   </button>
                 )) : (
                   <div className="command-empty"><Gauge size={18} /> No matching vehicle.</div>
