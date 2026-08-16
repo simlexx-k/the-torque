@@ -50,7 +50,7 @@ If a Cloudflare Tunnel token has been pasted into chat, logs, tickets, source co
 The VPS stack contains three services:
 
 - `db` — PostgreSQL 17 with a startup grace period for first-volume initialization.
-- `app` — FastAPI, reachable on the Compose network as `http://app:8000` and additionally on VPS loopback at `127.0.0.1:8000` for local diagnostics.
+- `app` — FastAPI, reachable only on the Compose network as `http://app:8000`. Port 8000 is not published on the VPS host.
 - `cloudflared` — remotely managed Cloudflare Tunnel connector using `CLOUDFLARED_TOKEN` from `.env`.
 
 Start the stack in the background:
@@ -71,13 +71,13 @@ Follow logs when required:
 docker compose logs -f db app cloudflared
 ```
 
-Verify FastAPI locally on the VPS:
+Verify FastAPI from inside the app container:
 
 ```bash
-curl http://127.0.0.1:8000/health
+docker compose exec app python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read().decode())"
 ```
 
-The FastAPI host port is bound to loopback only. Do not expose TCP/8000 in the VPS firewall.
+No FastAPI port is bound on the VPS host. This avoids host-port conflicts and keeps the backend reachable only through the internal Compose network and Cloudflare Tunnel.
 
 ## 3. Remotely managed Cloudflare Tunnel
 
@@ -146,7 +146,7 @@ Manual ingestion remains protected. `POST /api/ingest/run` requires `X-Admin-Key
 ## 6. Production checks
 
 - `docker compose ps` shows `db` and `app` healthy and `cloudflared` running.
-- `curl http://127.0.0.1:8000/health` succeeds on the VPS.
+- The in-container `/health` check succeeds.
 - `curl https://torque-api.a3slabs.co.ke/health` succeeds through Cloudflare.
 - Cloudflare's published route points to `http://app:8000`.
 - VPS firewall does not expose port 8000 publicly.
