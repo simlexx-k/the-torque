@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
+import { listingCollectionKey } from "@/lib/listingRef";
 import VehicleCard from "./VehicleCard";
 
 type QuickFilter = "all" | "available" | "price-drop" | "under-1m" | "suv" | "automatic";
@@ -174,7 +175,7 @@ export default function HomeCatalog() {
           <motion.div className="vehicle-grid catalog-vehicle-grid" layout>
             <AnimatePresence mode="popLayout">
               {visible.map((listing, index) => (
-                <VehicleCard key={listing.id} listing={listing} index={index} />
+                <VehicleCard key={listingCollectionKey(listing)} listing={listing} index={index} />
               ))}
             </AnimatePresence>
           </motion.div>
