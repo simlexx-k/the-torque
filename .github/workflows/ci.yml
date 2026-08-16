@@ -31,3 +31,13 @@ jobs:
       - run: node -e "JSON.parse(require('fs').readFileSync('../vercel.json', 'utf8'))"
       - run: npm install --no-audit --no-fund
       - run: npm run build
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose deployment
+        env:
+          CLOUDFLARED_TOKEN: ci-placeholder-token
+          POSTGRES_PASSWORD: ci-placeholder-password
+        run: docker compose config --quiet
