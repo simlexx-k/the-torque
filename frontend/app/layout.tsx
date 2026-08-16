@@ -9,6 +9,7 @@ import "./product.css";
 import "./signals.css";
 import "./home.css";
 import "./footer.css";
+import "./gallery.css";
 
 export const metadata: Metadata = {
   title: {
