@@ -54,7 +54,14 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title="The Torque", version="0.5.0", lifespan=lifespan)
+app = FastAPI(
+    title="The Torque",
+    version="0.5.0",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+)
 
 if settings.cors_origins:
     app.add_middleware(
@@ -147,7 +154,10 @@ def _listing_from_reference(db: Session, listing_ref: str) -> tuple[Listing | No
 
 @app.get("/")
 def root():
-    return {"name": "The Torque", "service": "x-vehicle-intelligence", "docs": "/docs"}
+    payload = {"name": "The Torque", "service": "vehicle-listings-api"}
+    if settings.api_docs_enabled:
+        payload["docs"] = "/docs"
+    return payload
 
 
 @app.get("/health")
