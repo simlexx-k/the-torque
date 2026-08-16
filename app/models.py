@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.public_ids import generate_listing_public_id
 
 
 class Source(Base):
@@ -65,7 +66,15 @@ class Listing(Base):
     __tablename__ = "listings"
     __table_args__ = (UniqueConstraint("post_id", "position", name="uq_post_listing_position"),)
 
+    # Keep the integer primary key internal for joins and backwards-compatible
+    # API clients. Public web routes use the independent random public_id.
     id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(
+        String(26),
+        unique=True,
+        index=True,
+        default=generate_listing_public_id,
+    )
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
     make: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
