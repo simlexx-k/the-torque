@@ -19,16 +19,16 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
 
   const onSave = () => {
     const selected = toggleSaved(listing.id);
-    toast(selected ? "Vehicle saved to watchlist." : "Vehicle removed from watchlist.");
+    toast(selected ? "Saved to your watchlist." : "Removed from your watchlist.");
   };
 
   const onCompare = () => {
     const result = toggleCompare(listing.id);
     if (result.full) {
-      toast.error("Comparison is limited to four vehicles.");
+      toast.error("You can compare up to four vehicles at a time.");
       return;
     }
-    toast(result.selected ? "Vehicle added to comparison." : "Vehicle removed from comparison.");
+    toast(result.selected ? "Added to comparison." : "Removed from comparison.");
   };
 
   return (
@@ -60,21 +60,21 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
         <div className="image-vignette" />
         <span className={`status-chip status-${status}`}>{status.replaceAll("_", " ")}</span>
         {listing.post?.media && listing.post.media.length > 1 && (
-          <span className="media-count"><Images size={13} /> {listing.post.media.length.toString().padStart(2, "0")} frames</span>
+          <span className="media-count"><Images size={13} /> {listing.post.media.length} photos</span>
         )}
       </Link>
 
       <div className="vehicle-card-body">
         <div className="vehicle-eyebrow">
-          <span>{listing.body_type || listing.generation || "Vehicle signal"}</span>
+          <span>{listing.body_type || listing.generation || "Vehicle"}</span>
           <span className="mono">#{String(listing.id).padStart(4, "0")}</span>
         </div>
         <Link href={`/listings/${listing.id}`} className="vehicle-name">{vehicleTitle(listing)}</Link>
         <div className="vehicle-price">{formatPrice(listing.price, listing.currency)}</div>
 
         <div className="vehicle-facts">
-          <span><Gauge size={16} />{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Mileage n/a"}</span>
-          <span><MapPin size={16} />{listing.location || "Location n/a"}</span>
+          <span><Gauge size={16} />{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Mileage not stated"}</span>
+          <span><MapPin size={16} />{listing.location || "Location not stated"}</span>
         </div>
 
         <div className="vehicle-tags">
@@ -92,11 +92,11 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
             </button>
             <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared} title="Add to comparison">
               <GitCompareArrows size={15} />
-              <span>{compared ? "Comparing" : "Compare"}</span>
+              <span>{compared ? "Selected" : "Compare"}</span>
             </button>
           </div>
           <Link className="card-link" href={`/listings/${listing.id}`}>
-            Open file <ArrowUpRight size={17} />
+            View listing <ArrowUpRight size={17} />
           </Link>
         </div>
       </div>
