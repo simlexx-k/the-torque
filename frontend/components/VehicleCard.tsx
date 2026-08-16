@@ -2,15 +2,34 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight, Gauge, Images, MapPin, Settings2 } from "lucide-react";
+import { ArrowUpRight, Bookmark, Gauge, GitCompareArrows, Images, MapPin, Settings2 } from "lucide-react";
+import { toast } from "sonner";
 import type { Listing } from "@/lib/types";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
+import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 export default function VehicleCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
   const media = listing.post?.media?.[0];
   const image = media?.url || media?.preview_image_url;
   const status = (listing.status || "available").toLowerCase();
   const reduceMotion = useReducedMotion();
+  const { isSaved, isCompared, toggleSaved, toggleCompare } = useVehicleCollections();
+  const saved = isSaved(listing.id);
+  const compared = isCompared(listing.id);
+
+  const onSave = () => {
+    const selected = toggleSaved(listing.id);
+    toast(selected ? "Vehicle saved to watchlist." : "Vehicle removed from watchlist.");
+  };
+
+  const onCompare = () => {
+    const result = toggleCompare(listing.id);
+    if (result.full) {
+      toast.error("Comparison is limited to four vehicles.");
+      return;
+    }
+    toast(result.selected ? "Vehicle added to comparison." : "Vehicle removed from comparison.");
+  };
 
   return (
     <motion.article
@@ -65,9 +84,21 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
             .map((tag) => <span key={String(tag)}><Settings2 size={12} />{tag}</span>)}
         </div>
 
-        <Link className="card-link" href={`/listings/${listing.id}`}>
-          Open intelligence file <ArrowUpRight size={17} />
-        </Link>
+        <div className="vehicle-card-footer">
+          <div className="vehicle-collection-actions">
+            <button type="button" className={saved ? "active" : ""} onClick={onSave} aria-pressed={saved} title="Save to watchlist">
+              <Bookmark size={15} fill={saved ? "currentColor" : "none"} />
+              <span>{saved ? "Saved" : "Save"}</span>
+            </button>
+            <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared} title="Add to comparison">
+              <GitCompareArrows size={15} />
+              <span>{compared ? "Comparing" : "Compare"}</span>
+            </button>
+          </div>
+          <Link className="card-link" href={`/listings/${listing.id}`}>
+            Open file <ArrowUpRight size={17} />
+          </Link>
+        </div>
       </div>
     </motion.article>
   );
