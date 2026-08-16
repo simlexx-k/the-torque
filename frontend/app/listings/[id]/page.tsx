@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import ListingDetail from "@/components/ListingDetail";
 import type { Listing } from "@/lib/types";
@@ -88,6 +88,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  if (!validListingReference(id)) {
+    notFound();
+  }
 
   if (LEGACY_LISTING_RE.test(id)) {
     const listing = await fetchListingForMetadata(id);
