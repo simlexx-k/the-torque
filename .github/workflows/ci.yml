@@ -40,4 +40,6 @@ jobs:
         env:
           CLOUDFLARED_TOKEN: ci-placeholder-token
           POSTGRES_PASSWORD: ci-placeholder-password
-        run: docker compose config --quiet
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
