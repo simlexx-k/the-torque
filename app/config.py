@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Network hardening. Keep CORS empty when the Vercel server-side proxy is used.
     cors_allowed_origins: str = ""
     trusted_hosts: str = "*"
+    # API discovery surfaces are off by default. Enable only on a trusted
+    # development/operator deployment, never on the public API hostname.
+    api_docs_enabled: bool = False
 
     x_bearer_token: str = ""
     x_target_username: str = ""
