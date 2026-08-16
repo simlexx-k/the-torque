@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const PUBLIC_LISTING_RE = /^lst_[A-Za-z0-9_-]{22}$/;
+const LEGACY_LISTING_RE = /^[1-9][0-9]{0,17}$/;
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const OPERATOR_ROUTES = new Set(["overview", "posts", "status"]);
 
@@ -33,6 +34,13 @@ function operatorRoutesEnabled() {
   return process.env.NODE_ENV !== "production" || process.env.TORQUE_PUBLIC_OPERATOR_ROUTES === "true";
 }
 
+function legacyPublicIdsEnabled() {
+  if (process.env.NODE_ENV !== "production") return true;
+  // Defaults to true for one safe rolling-deploy window. After the backend with
+  // public_id support is live, explicitly set this to false in Vercel.
+  return process.env.TORQUE_ALLOW_LEGACY_PUBLIC_IDS !== "false";
+}
+
 function routeAllowed(path: string[]) {
   if (!path.length || path.length > 2 || path.some((segment) => !SAFE_SEGMENT_RE.test(segment))) {
     return false;
@@ -40,10 +48,8 @@ function routeAllowed(path: string[]) {
 
   if (path[0] === "listings") {
     if (path.length === 1) return true;
-    // The public proxy intentionally refuses enumerable legacy numeric ids.
-    // Old /listings/70 web URLs are resolved server-side and redirected to the
-    // opaque canonical URL; direct backend API clients remain compatible.
-    return PUBLIC_LISTING_RE.test(path[1]);
+    if (PUBLIC_LISTING_RE.test(path[1])) return true;
+    return LEGACY_LISTING_RE.test(path[1]) && legacyPublicIdsEnabled();
   }
 
   if (OPERATOR_ROUTES.has(path[0])) {
