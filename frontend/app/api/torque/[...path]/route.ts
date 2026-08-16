@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const PUBLIC_LISTING_RE = /^lst_[A-Za-z0-9_-]{22}$/;
+const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const OPERATOR_ROUTES = new Set(["posts", "status"]);
+
 function backendBase() {
   const configured = process.env.TORQUE_API_BASE_URL || process.env.TORQUE_API_INTERNAL_URL;
   if (configured) return configured.replace(/\/$/, "");
@@ -12,7 +16,7 @@ function backendBase() {
 function backendHeaders() {
   const headers = new Headers({
     Accept: "application/json",
-    "User-Agent": "the-torque-vercel-proxy/1.0",
+    "User-Agent": "the-torque-vercel-proxy/1.1",
   });
 
   const clientId = process.env.CF_ACCESS_CLIENT_ID;
@@ -25,7 +29,51 @@ function backendHeaders() {
   return headers;
 }
 
+function operatorRoutesEnabled() {
+  return process.env.NODE_ENV !== "production" || process.env.TORQUE_PUBLIC_OPERATOR_ROUTES === "true";
+}
+
+function routeAllowed(path: string[]) {
+  if (!path.length || path.length > 2 || path.some((segment) => !SAFE_SEGMENT_RE.test(segment))) {
+    return false;
+  }
+
+  if (path[0] === "overview") return path.length === 1;
+
+  if (path[0] === "listings") {
+    if (path.length === 1) return true;
+    // The public proxy intentionally refuses enumerable legacy numeric ids.
+    // Old /listings/70 web URLs are resolved server-side and redirected to the
+    // opaque canonical URL; direct backend API clients remain compatible.
+    return PUBLIC_LISTING_RE.test(path[1]);
+  }
+
+  if (OPERATOR_ROUTES.has(path[0])) {
+    return path.length === 1 && operatorRoutesEnabled();
+  }
+
+  return false;
+}
+
+function queryAllowed(request: NextRequest, path: string[]) {
+  const keys = Array.from(request.nextUrl.searchParams.keys());
+  if (path[0] === "listings" || path[0] === "posts") {
+    return keys.every((key) => key === "limit");
+  }
+  return keys.length === 0;
+}
+
+function publicCacheControl(path: string[]) {
+  if (path[0] === "listings") return "public, s-maxage=30, stale-while-revalidate=120";
+  if (path[0] === "overview") return "public, s-maxage=30, stale-while-revalidate=60";
+  return "no-store";
+}
+
 async function forward(request: NextRequest, path: string[]) {
+  if (!routeAllowed(path) || !queryAllowed(request, path)) {
+    return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  }
+
   const base = backendBase();
   if (!base) {
     return NextResponse.json(
@@ -50,7 +98,9 @@ async function forward(request: NextRequest, path: string[]) {
       status: response.status,
       headers: {
         "content-type": response.headers.get("content-type") || "application/json",
-        "cache-control": "no-store",
+        "cache-control": publicCacheControl(path),
+        "x-robots-tag": "noindex, nofollow",
+        "x-content-type-options": "nosniff",
       },
     });
   } catch {
