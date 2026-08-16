@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./the_torque.db"
     admin_api_key: str = ""
 
+    # Network hardening. Keep CORS empty when the Vercel server-side proxy is used.
+    cors_allowed_origins: str = ""
+    trusted_hosts: str = "*"
+
     x_bearer_token: str = ""
     x_target_username: str = ""
     x_exclude_replies: bool = False
@@ -44,6 +48,15 @@ class Settings(BaseSettings):
         if value not in {"low", "high", "auto"}:
             raise ValueError("OPENAI_IMAGE_DETAIL must be low, high, or auto")
         return value
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [item.strip().rstrip("/") for item in self.cors_allowed_origins.split(",") if item.strip()]
+
+    @property
+    def trusted_host_list(self) -> list[str]:
+        hosts = [item.strip() for item in self.trusted_hosts.split(",") if item.strip()]
+        return hosts or ["*"]
 
 
 @lru_cache

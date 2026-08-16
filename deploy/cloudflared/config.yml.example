@@ -1,0 +1,11 @@
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: api.example.com
+    service: http://127.0.0.1:8000
+    originRequest:
+      # Keep FastAPI aware of the public API hostname when TrustedHostMiddleware is enabled.
+      httpHostHeader: api.example.com
+      connectTimeout: 10s
+  - service: http_status:404

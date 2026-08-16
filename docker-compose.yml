@@ -21,20 +21,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://thetorque:${POSTGRES_PASSWORD:-change-me}@db:5432/thetorque
     ports:
-      - "8000:8000"
+      # Cloudflare Tunnel runs on the VPS host and reaches FastAPI locally.
+      # The API port is never bound to the VPS public interface.
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
-
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    environment:
-      TORQUE_API_INTERNAL_URL: http://app:8000
-    ports:
-      - "3000:3000"
-    depends_on:
-      - app
 
 volumes:
   torque_postgres:

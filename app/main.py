@@ -6,8 +6,10 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import Settings, get_settings
 from app.db import SessionLocal, create_db
@@ -50,7 +52,28 @@ async def lifespan(app: FastAPI):
         await task
 
 
-app = FastAPI(title="The Torque", version="0.2.0", lifespan=lifespan)
+settings = get_settings()
+app = FastAPI(title="The Torque", version="0.3.0", lifespan=lifespan)
+
+# The Vercel frontend normally talks to FastAPI through its server-side proxy,
+# which means browser CORS is not required. This remains configurable for
+# trusted direct-browser consumers or future admin surfaces.
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Accept", "Content-Type", "X-Admin-Key"],
+        max_age=600,
+    )
+
+if settings.trusted_host_list != ["*"]:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.trusted_host_list,
+        www_redirect=False,
+    )
 
 
 def _serialize_media(media) -> dict:

@@ -1,6 +1,34 @@
 # The Torque
 
-The Torque is an AI-assisted vehicle listing intelligence platform. It watches one configurable public X account, incrementally ingests new posts and attached media, classifies listing activity, extracts vehicle details with provenance/confidence, persists normalized records, and presents them in an image-led Next.js intelligence dashboard.
+The Torque is an AI-assisted vehicle listing intelligence platform. It watches a configurable public X account, incrementally ingests new posts and attached media, classifies listing activity, extracts vehicle details with provenance/confidence, persists normalized records, and presents them in an image-led Next.js intelligence dashboard.
+
+## Production topology
+
+The production deployment is split deliberately:
+
+```text
+Browser
+  |
+  v
+Vercel / Next.js frontend
+  |
+  | server-side read-only proxy
+  v
+Cloudflare API hostname
+  |
+  v
+Cloudflare Tunnel
+  |
+  v
+FastAPI on VPS (127.0.0.1:8000)
+  |
+  v
+PostgreSQL
+```
+
+The frontend does not need direct database/X/OpenAI access. X, OpenAI, PostgreSQL and administrative secrets stay on the VPS. The browser talks to same-origin Next.js routes under `/api/torque/*`; the Next.js server route forwards those requests to the tunneled FastAPI hostname.
+
+See [`docs/deployment.md`](docs/deployment.md) for the Vercel + VPS + Cloudflare Tunnel deployment procedure.
 
 ## Current capabilities
 
@@ -10,48 +38,18 @@ The Torque is an AI-assisted vehicle listing intelligence platform. It watches o
 - Pulls attached media via `attachments.media_keys` expansion.
 - Configurable first-run lookback and bounded pagination.
 - Polls every 10 minutes from 06:00–22:00 Africa/Nairobi and hourly overnight by default.
-- Cheap prefilter before AI: obvious unrelated posts are stored but do not spend multimodal inference calls.
+- Cheap prefilter before AI so obvious unrelated posts do not spend multimodal inference calls.
 - OpenAI Responses API multimodal extraction with structured Pydantic output.
 - One post can yield multiple normalized vehicle listings.
 - Seller claims, visual evidence, OCR, AI inference and confidence are kept distinct.
 - PostgreSQL persistence plus FastAPI health, telemetry, posts, overview, listings and detail endpoints.
-- Highly visual Next.js 16 frontend with live inventory, search/filter/sort, system telemetry and vehicle intelligence detail pages.
-- Server-side frontend proxy exposes read-only vehicle data without exposing backend secrets.
-- Docker Compose deployment and backend/frontend GitHub Actions CI.
+- Highly visual Next.js frontend with live inventory, search/filter/sort, system telemetry and vehicle intelligence detail pages.
+- Optional Cloudflare Access service-token support between Vercel and the API hostname.
+- Backend/frontend GitHub Actions CI.
 
-## Architecture
+## Backend configuration
 
-```text
-                       X API v2
-                          |
-                          v
-                 incremental ingestor
-                          |
-                raw posts + media
-                          |
-             +------------+-------------+
-             |                          |
-             v                          v
-        PostgreSQL               candidate prefilter
-                                        |
-                                        v
-                           OpenAI multimodal extractor
-                                        |
-                                        v
-                              normalized listings
-                                        |
-                                        v
-                                    FastAPI
-                                        |
-                            server-side Next proxy
-                                        |
-                                        v
-                          Next.js intelligence UI
-```
-
-## Configuration
-
-Copy `.env.example` to `.env` and supply at least:
+Copy `.env.example` to `.env` on the VPS and supply at least:
 
 ```env
 X_BEARER_TOKEN=...
@@ -61,7 +59,14 @@ POSTGRES_PASSWORD=use-a-strong-password
 ADMIN_API_KEY=use-another-long-random-secret
 ```
 
-Never commit credentials. For read-only public X data, the backend uses the app Bearer Token; no user-context OAuth credentials are required for this MVP.
+For the production tunnel hostname, harden Host validation:
+
+```env
+TRUSTED_HOSTS=api.example.com,127.0.0.1,localhost
+CORS_ALLOWED_ORIGINS=
+```
+
+CORS can remain empty because the Vercel frontend uses a server-side proxy rather than browser-to-backend cross-origin calls.
 
 ### Polling window
 
@@ -75,7 +80,7 @@ NIGHTTIME_POLL_SECONDS=3600
 
 This means 10-minute cycles during 06:00–21:59 EAT and hourly cycles during 22:00–05:59 EAT.
 
-## Run the complete stack with Docker
+## Run the VPS backend
 
 ```bash
 cp .env.example .env
@@ -83,15 +88,15 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open:
+FastAPI is bound only to VPS loopback:
 
-- Frontend: `http://localhost:3000`
-- FastAPI docs: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health`
+```text
+127.0.0.1:8000
+```
 
-The frontend container reaches FastAPI over the internal Compose network and proxies browser requests through `/api/torque/*`. Manual ingestion remains a backend-only administrative action and requires `X-Admin-Key`; the public frontend does not proxy it.
+Cloudflare Tunnel publishes the external API hostname to that local service. Do not expose port 8000 publicly.
 
-## Backend endpoints
+Useful backend endpoints:
 
 - `GET /health`
 - `GET /api/status`
@@ -101,21 +106,40 @@ The frontend container reaches FastAPI over the internal Compose network and pro
 - `GET /api/listings`
 - `GET /api/listings/{id}`
 
+## Deploy the frontend on Vercel
+
+Import this GitHub repository into Vercel and set the project **Root Directory** to `frontend`.
+
+Configure the server-side backend URL:
+
+```env
+TORQUE_API_BASE_URL=https://api.example.com
+```
+
+Do not use a `NEXT_PUBLIC_` prefix. The URL is consumed by the Next.js server-side route handler.
+
+If the API hostname is protected with Cloudflare Access Service Auth, also configure these as sensitive Vercel variables:
+
+```env
+CF_ACCESS_CLIENT_ID=...
+CF_ACCESS_CLIENT_SECRET=...
+```
+
+## Local frontend development
+
+Run FastAPI locally on port 8000, then from `frontend/`:
+
+```bash
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+The development fallback is `http://127.0.0.1:8000`.
+
 ## Frontend experience
 
-The dashboard is designed as an automotive intelligence product rather than a generic admin template. It includes:
-
-- animated market-pulse instrument hero;
-- indexed inventory and AI enrichment telemetry;
-- seller-account monitoring state and polling cadence;
-- live listing cards using original seller media;
-- search, status filters and price/year sorting;
-- available / reserved / sold / price-drop presentation;
-- full vehicle detail pages with gallery, structured specifications, seller text and original X link;
-- evidence/provenance map for extracted fields;
-- visual observations clearly marked non-diagnostic;
-- responsive mobile and desktop layouts;
-- strong empty/error states so the product still communicates system state before the first listing arrives.
+The dashboard is designed as an automotive intelligence product rather than a generic admin template. It includes an animated market-pulse hero, seller-account monitoring state, live vehicle cards using seller media, search/filter/sort controls, vehicle detail galleries, structured specifications, original X links, evidence/provenance maps and clearly labelled non-diagnostic visual observations.
 
 ## First run behaviour
 
@@ -127,17 +151,6 @@ If `OPENAI_API_KEY` is absent, candidate posts are safely retained with `ai_stat
 
 The AI prompt is deliberately conservative. It must not infer mechanical condition, accident history, legal ownership, or authenticity from photographs. Missing values remain missing. Every extracted field can carry a `source` and `confidence` value in the listing's `evidence` JSON.
 
-The frontend preserves this distinction by visually separating source description, structured values, evidence provenance and non-diagnostic observations.
-
-## Local frontend development
-
-Run FastAPI first on port 8000, then from `frontend/`:
-
-```bash
-npm install
-TORQUE_API_INTERNAL_URL=http://127.0.0.1:8000 npm run dev
-```
-
 ## Next development layers
 
 1. Validate extraction quality against the real seller's historical posts.
@@ -146,7 +159,5 @@ TORQUE_API_INTERNAL_URL=http://127.0.0.1:8000 npm run dev
 4. Add admin review workflow for medium-confidence fields.
 5. Add historical price/market comparison and alerting.
 6. Add object storage only after the desired X-content retention policy is confirmed.
-
-## Deployment note
 
 Run a single scheduler-enabled backend replica for the MVP. If FastAPI is horizontally scaled later, move scheduling to a dedicated worker or add a distributed lock so replicas do not duplicate X polling.
