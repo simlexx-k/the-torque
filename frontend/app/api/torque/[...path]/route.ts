@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 const PUBLIC_LISTING_RE = /^lst_[A-Za-z0-9_-]{22}$/;
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
-const OPERATOR_ROUTES = new Set(["posts", "status"]);
+const OPERATOR_ROUTES = new Set(["overview", "posts", "status"]);
 
 function backendBase() {
   const configured = process.env.TORQUE_API_BASE_URL || process.env.TORQUE_API_INTERNAL_URL;
@@ -38,8 +38,6 @@ function routeAllowed(path: string[]) {
     return false;
   }
 
-  if (path[0] === "overview") return path.length === 1;
-
   if (path[0] === "listings") {
     if (path.length === 1) return true;
     // The public proxy intentionally refuses enumerable legacy numeric ids.
@@ -65,7 +63,6 @@ function queryAllowed(request: NextRequest, path: string[]) {
 
 function publicCacheControl(path: string[]) {
   if (path[0] === "listings") return "public, s-maxage=30, stale-while-revalidate=120";
-  if (path[0] === "overview") return "public, s-maxage=30, stale-while-revalidate=60";
   return "no-store";
 }
 
