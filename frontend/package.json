@@ -1,6 +1,6 @@
 {
   "name": "the-torque-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,9 +8,15 @@
     "start": "next start"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.101.4",
+    "embla-carousel-react": "8.6.0",
+    "lucide-react": "1.28.0",
+    "motion": "12.43.0",
     "next": "16.2.11",
+    "radix-ui": "1.6.7",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "sonner": "2.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
