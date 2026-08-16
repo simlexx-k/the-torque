@@ -28,13 +28,14 @@ import {
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { confidenceToPercent, formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
+import { listingCollectionKey, listingShortReference } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 export default function ListingDetail({ id }: { id: string }) {
   const reduceMotion = useReducedMotion();
   const listingQuery = useQuery({
     queryKey: ["listing", id],
-    queryFn: () => fetchJson<Listing>(`/api/torque/listings/${id}`),
+    queryFn: () => fetchJson<Listing>(`/api/torque/listings/${encodeURIComponent(id)}`),
   });
   const listing = listingQuery.data ?? null;
   const images = useMemo(
@@ -128,16 +129,17 @@ export default function ListingDetail({ id }: { id: string }) {
   ].filter(([, value]) => value !== null && value !== undefined && value !== "");
 
   const evidenceEntries = Object.entries(listing.evidence || {});
-  const saved = isSaved(listing.id);
-  const compared = isCompared(listing.id);
+  const collectionKey = listingCollectionKey(listing);
+  const saved = isSaved(collectionKey, listing.id);
+  const compared = isCompared(collectionKey, listing.id);
 
   const onSave = () => {
-    const selected = toggleSaved(listing.id);
+    const selected = toggleSaved(collectionKey, listing.id);
     toast(selected ? "Saved to your watchlist." : "Removed from your watchlist.");
   };
 
   const onCompare = () => {
-    const result = toggleCompare(listing.id);
+    const result = toggleCompare(collectionKey, listing.id);
     if (result.full) {
       toast.error("You can compare up to four vehicles at a time.");
       return;
@@ -208,7 +210,7 @@ export default function ListingDetail({ id }: { id: string }) {
 
         <div className="detail-summary">
           <Link href="/inventory" className="detail-back-link"><ArrowLeft size={15}/> Back to listings</Link>
-          <div className="section-kicker"><span>LISTING</span> #{String(listing.id).padStart(4, "0")}</div>
+          <div className="section-kicker"><span>LISTING</span> REF {listingShortReference(listing)}</div>
           <h1>{vehicleTitle(listing)}</h1>
           <p className="detail-price">{formatPrice(listing.price, listing.currency)}</p>
           <div className="detail-facts">
