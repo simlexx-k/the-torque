@@ -23,10 +23,10 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://thetorque:${POSTGRES_PASSWORD:-change-me}@db:5432/thetorque
-    ports:
-      # Keep a loopback-only host port for VPS health checks/debugging.
-      # Public traffic reaches the app over the internal Compose network via cloudflared.
-      - "127.0.0.1:8000:8000"
+    expose:
+      # Internal-only API port. cloudflared reaches this service as http://app:8000.
+      # Nothing is published on the VPS host, avoiding host-port conflicts/exposure.
+      - "8000"
     healthcheck:
       test:
         - CMD
