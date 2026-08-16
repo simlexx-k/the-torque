@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Filter, LayoutGrid, ListFilter, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
+import { listingCollectionKey } from "@/lib/listingRef";
 import VehicleCard from "@/components/VehicleCard";
 
 export default function InventoryExplorer() {
@@ -106,7 +107,7 @@ export default function InventoryExplorer() {
         ) : filtered.length ? (
           <motion.div className="vehicle-grid" layout>
             <AnimatePresence mode="popLayout">
-              {filtered.map((listing, index) => <VehicleCard key={listing.id} listing={listing} index={index} />)}
+              {filtered.map((listing, index) => <VehicleCard key={listingCollectionKey(listing)} listing={listing} index={index} />)}
             </AnimatePresence>
           </motion.div>
         ) : (

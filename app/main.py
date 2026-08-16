@@ -5,7 +5,7 @@ import logging
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import Settings, get_settings
 from app.db import SessionLocal, create_db
 from app.models import Listing, Post, Source
+from app.public_ids import is_legacy_numeric_listing_ref, is_listing_public_id
 from app.scheduler import scheduler_loop
 from app.service import IngestionService
 
@@ -53,7 +54,14 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title="The Torque", version="0.4.0", lifespan=lifespan)
+app = FastAPI(
+    title="The Torque",
+    version="0.5.0",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+)
 
 if settings.cors_origins:
     app.add_middleware(
@@ -92,7 +100,11 @@ def _post_ai_meta(post: Post) -> dict:
 def _serialize_listing(row: Listing) -> dict:
     post = row.post
     return {
+        # id/post_id remain for backwards-compatible API consumers. Public web
+        # routes and new clients should use public_id/public_url instead.
         "id": row.id,
+        "public_id": row.public_id,
+        "public_url": f"/listings/{row.public_id}",
         "post_id": row.post_id,
         "x_url": f"https://x.com/{post.source.username}/status/{post.x_post_id}",
         "make": row.make,
@@ -126,9 +138,26 @@ def _serialize_listing(row: Listing) -> dict:
     }
 
 
+def _listing_from_reference(db: Session, listing_ref: str) -> tuple[Listing | None, bool]:
+    """Resolve a new public reference or an old integer primary-key reference.
+
+    Returns (row, used_legacy_numeric_id). Invalid/unbounded path input is not
+    sent to the database.
+    """
+    reference = listing_ref.strip()
+    if is_listing_public_id(reference):
+        return db.scalar(select(Listing).where(Listing.public_id == reference)), False
+    if is_legacy_numeric_listing_ref(reference):
+        return db.get(Listing, int(reference)), True
+    return None, False
+
+
 @app.get("/")
 def root():
-    return {"name": "The Torque", "service": "x-vehicle-intelligence", "docs": "/docs"}
+    payload = {"name": "The Torque", "service": "vehicle-listings-api"}
+    if settings.api_docs_enabled:
+        payload["docs"] = "/docs"
+    return payload
 
 
 @app.get("/health")
@@ -256,9 +285,18 @@ def listings(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends
     return [_serialize_listing(row) for row in rows]
 
 
-@app.get("/api/listings/{listing_id}")
-def listing_detail(listing_id: int, db: Session = Depends(get_db)):
-    row = db.get(Listing, listing_id)
+@app.get("/api/listings/{listing_ref}")
+def listing_detail(listing_ref: str, response: Response, db: Session = Depends(get_db)):
+    row, legacy_numeric = _listing_from_reference(db, listing_ref)
     if row is None:
         raise HTTPException(status_code=404, detail="Listing not found")
+
+    if legacy_numeric:
+        # Old integrations keep receiving a normal 200 JSON response. These
+        # headers advertise the canonical public reference without forcing a
+        # redirect that could break API clients.
+        response.headers["Deprecation"] = "true"
+        response.headers["Link"] = f'</api/listings/{row.public_id}>; rel="canonical"'
+        response.headers["X-Torque-Public-Id"] = row.public_id
+
     return _serialize_listing(row)

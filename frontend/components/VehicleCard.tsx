@@ -6,6 +6,7 @@ import { ArrowUpRight, Bookmark, Gauge, GitCompareArrows, Images, MapPin, Settin
 import { toast } from "sonner";
 import type { Listing } from "@/lib/types";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
+import { listingCollectionKey, listingHref, listingShortReference } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 export default function VehicleCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
@@ -13,17 +14,19 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
   const image = media?.url || media?.preview_image_url;
   const status = (listing.status || "available").toLowerCase();
   const reduceMotion = useReducedMotion();
+  const collectionKey = listingCollectionKey(listing);
+  const href = listingHref(listing);
   const { isSaved, isCompared, toggleSaved, toggleCompare } = useVehicleCollections();
-  const saved = isSaved(listing.id);
-  const compared = isCompared(listing.id);
+  const saved = isSaved(collectionKey, listing.id);
+  const compared = isCompared(collectionKey, listing.id);
 
   const onSave = () => {
-    const selected = toggleSaved(listing.id);
+    const selected = toggleSaved(collectionKey, listing.id);
     toast(selected ? "Saved to your watchlist." : "Removed from your watchlist.");
   };
 
   const onCompare = () => {
-    const result = toggleCompare(listing.id);
+    const result = toggleCompare(collectionKey, listing.id);
     if (result.full) {
       toast.error("You can compare up to four vehicles at a time.");
       return;
@@ -41,7 +44,7 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
       transition={{ duration: reduceMotion ? 0 : 0.34, delay: reduceMotion ? 0 : Math.min(index * 0.025, 0.2), ease: [0.22, 1, 0.36, 1] }}
       whileHover={reduceMotion ? undefined : { y: -5 }}
     >
-      <Link href={`/listings/${listing.id}`} className="vehicle-image-wrap" aria-label={vehicleTitle(listing)}>
+      <Link href={href} className="vehicle-image-wrap" aria-label={vehicleTitle(listing)}>
         {image ? (
           <motion.img
             className="vehicle-image"
@@ -67,9 +70,9 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
       <div className="vehicle-card-body">
         <div className="vehicle-eyebrow">
           <span>{listing.body_type || listing.generation || "Vehicle"}</span>
-          <span className="mono">#{String(listing.id).padStart(4, "0")}</span>
+          <span className="mono">REF {listingShortReference(listing)}</span>
         </div>
-        <Link href={`/listings/${listing.id}`} className="vehicle-name">{vehicleTitle(listing)}</Link>
+        <Link href={href} className="vehicle-name">{vehicleTitle(listing)}</Link>
         <div className="vehicle-price">{formatPrice(listing.price, listing.currency)}</div>
 
         <div className="vehicle-facts">
@@ -95,7 +98,7 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
               <span>{compared ? "Selected" : "Compare"}</span>
             </button>
           </div>
-          <Link className="card-link" href={`/listings/${listing.id}`}>
+          <Link className="card-link" href={href}>
             View listing <ArrowUpRight size={17} />
           </Link>
         </div>

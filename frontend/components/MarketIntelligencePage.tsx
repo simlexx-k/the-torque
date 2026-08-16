@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BadgeDollarSign, CarFront, Clock3, Database, Gauge, TrendingUp } from "lucide-react";
-import type { Listing, Overview } from "@/lib/types";
+import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { formatNumber, formatPrice, formatRelativeTime } from "@/lib/format";
 
@@ -15,11 +15,10 @@ function median(values: number[]) {
 }
 
 export default function MarketIntelligencePage() {
+  // The public market page intentionally derives its summary from the public
+  // listing payload instead of requesting the backend operations overview.
   const listingsQuery = useQuery({ queryKey: ["listings", "market"], queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=200"), refetchInterval: 60_000 });
-  const overviewQuery = useQuery({ queryKey: ["overview"], queryFn: () => fetchJson<Overview>("/api/torque/overview"), refetchInterval: 60_000 });
-
   const listings = listingsQuery.data ?? [];
-  const overview = overviewQuery.data;
 
   const snapshot = useMemo(() => {
     const priced = listings.map((listing) => listing.price).filter((value): value is number => typeof value === "number" && value > 0);
@@ -32,10 +31,16 @@ export default function MarketIntelligencePage() {
     });
     const makes = [...makeCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
     const bodies = [...bodyCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const latestListingAt = listings
+      .map((listing) => listing.created_at)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
     return {
       medianPrice: median(priced),
       medianMileage: median(mileages),
       priceCoverage: listings.length ? Math.round((priced.length / listings.length) * 100) : 0,
+      available: listings.filter((item) => item.status?.toLowerCase() === "available").length,
+      latestListingAt,
       makes,
       bodies,
       maxMakeCount: Math.max(...makes.map(([, count]) => count), 1),
@@ -51,14 +56,14 @@ export default function MarketIntelligencePage() {
           <h1>See where current<br/><em>asking prices sit.</em></h1>
           <p>A simple view of the vehicles currently listed in The Torque: asking prices, mileage and the makes and body styles appearing most often.</p>
         </div>
-        <div className="page-hero-stat market-pulse-stat"><TrendingUp size={19}/><span><small>VEHICLES IN VIEW</small><strong>{overview?.listings_total ?? listings.length}</strong></span></div>
+        <div className="page-hero-stat market-pulse-stat"><TrendingUp size={19}/><span><small>VEHICLES IN VIEW</small><strong>{listings.length}</strong></span></div>
       </section>
 
       <section className="market-stat-grid">
         <article><BadgeDollarSign size={18}/><small>MEDIAN ASKING PRICE</small><strong>{formatPrice(snapshot.medianPrice, "KES")}</strong><span>Price shown on {snapshot.priceCoverage}% of listings</span></article>
         <article><Gauge size={18}/><small>MEDIAN MILEAGE</small><strong>{snapshot.medianMileage ? `${formatNumber(snapshot.medianMileage)} km` : "—"}</strong><span>For vehicles with mileage stated</span></article>
-        <article><CarFront size={18}/><small>AVAILABLE NOW</small><strong>{overview?.available_total ?? listings.filter((item) => item.status === "available").length}</strong><span>Marked available in the current listings</span></article>
-        <article><Clock3 size={18}/><small>MOST RECENT ADDITION</small><strong>{formatRelativeTime(overview?.latest_listing_at || overview?.latest_post_at)}</strong><span>Based on the latest listing received</span></article>
+        <article><CarFront size={18}/><small>AVAILABLE NOW</small><strong>{snapshot.available}</strong><span>Marked available in the current listings</span></article>
+        <article><Clock3 size={18}/><small>MOST RECENT ADDITION</small><strong>{formatRelativeTime(snapshot.latestListingAt)}</strong><span>Based on the latest public listing</span></article>
       </section>
 
       <section className="market-analysis-grid">

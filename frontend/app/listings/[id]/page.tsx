@@ -1,15 +1,37 @@
 import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import ListingDetail from "@/components/ListingDetail";
 import type { Listing } from "@/lib/types";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
 import { SITE_DESCRIPTION } from "@/lib/site";
 
-async function fetchListingForMetadata(id: string): Promise<Listing | null> {
+const PUBLIC_LISTING_RE = /^lst_[A-Za-z0-9_-]{22}$/;
+const LEGACY_LISTING_RE = /^[1-9][0-9]{0,17}$/;
+
+function validListingReference(value: string) {
+  return PUBLIC_LISTING_RE.test(value) || LEGACY_LISTING_RE.test(value);
+}
+
+function backendHeaders() {
+  const headers = new Headers({ Accept: "application/json" });
+  const clientId = process.env.CF_ACCESS_CLIENT_ID;
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    headers.set("CF-Access-Client-Id", clientId);
+    headers.set("CF-Access-Client-Secret", clientSecret);
+  }
+  return headers;
+}
+
+const fetchListingForMetadata = cache(async (id: string): Promise<Listing | null> => {
+  if (!validListingReference(id)) return null;
   const baseUrl = (process.env.TORQUE_API_BASE_URL || process.env.TORQUE_API_INTERNAL_URL)?.replace(/\/+$/, "");
   if (!baseUrl) return null;
 
   try {
     const response = await fetch(`${baseUrl}/api/listings/${encodeURIComponent(id)}`, {
+      headers: backendHeaders(),
       next: { revalidate: 300 },
     });
     if (!response.ok) return null;
@@ -17,21 +39,22 @@ async function fetchListingForMetadata(id: string): Promise<Listing | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const canonical = `/listings/${id}`;
   const listing = await fetchListingForMetadata(id);
 
   if (!listing) {
     return {
-      title: `Vehicle listing #${id}`,
+      title: "Vehicle listing",
       description: SITE_DESCRIPTION,
-      alternates: { canonical },
+      robots: { index: false, follow: false },
     };
   }
 
+  const publicRef = listing.public_id || id;
+  const canonical = `/listings/${publicRef}`;
   const title = vehicleTitle(listing);
   const description = [
     formatPrice(listing.price, listing.currency),
@@ -65,5 +88,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  if (!validListingReference(id)) {
+    notFound();
+  }
+
+  if (LEGACY_LISTING_RE.test(id)) {
+    const listing = await fetchListingForMetadata(id);
+    if (listing?.public_id) {
+      redirect(`/listings/${listing.public_id}`);
+    }
+  }
+
   return <ListingDetail id={id} />;
 }

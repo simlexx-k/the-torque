@@ -14,3 +14,8 @@ def test_network_settings_parse_comma_separated_values():
 def test_empty_trusted_hosts_falls_back_to_wildcard():
     settings = Settings(trusted_hosts="")
     assert settings.trusted_host_list == ["*"]
+
+
+def test_api_docs_are_disabled_by_default():
+    settings = Settings()
+    assert settings.api_docs_enabled is False

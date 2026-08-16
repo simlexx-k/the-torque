@@ -7,6 +7,12 @@ import { ArrowUpRight, CarFront, GitCompareArrows, Plus, Trash2, X } from "lucid
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
+import {
+  listingCollectionKey,
+  listingCollectionKeys,
+  listingHref,
+  listingShortReference,
+} from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 const rows: { label: string; value: (listing: Listing) => string }[] = [
@@ -30,7 +36,12 @@ export default function ComparePage() {
     refetchInterval: 60_000,
   });
 
-  const selected = useMemo(() => compare.map((id) => (listingsQuery.data ?? []).find((listing) => listing.id === id)).filter(Boolean) as Listing[], [compare, listingsQuery.data]);
+  const selected = useMemo(
+    () => (listingsQuery.data ?? [])
+      .filter((listing) => listingCollectionKeys(listing).some((key) => compare.includes(key)))
+      .slice(0, 4),
+    [compare, listingsQuery.data],
+  );
 
   return (
     <main className="product-page compare-page">
@@ -40,7 +51,7 @@ export default function ComparePage() {
           <h1>Compare the cars<br/><em>on your shortlist.</em></h1>
           <p>Line up as many as four vehicles and compare the asking price, mileage, engine, transmission, location and other stated details.</p>
         </div>
-        <div className="page-hero-stat"><GitCompareArrows size={18}/><span><small>SELECTED</small><strong>{compare.length}/4</strong></span></div>
+        <div className="page-hero-stat"><GitCompareArrows size={18}/><span><small>SELECTED</small><strong>{selected.length}/4</strong></span></div>
       </section>
 
       {selected.length > 0 ? (
@@ -56,21 +67,22 @@ export default function ComparePage() {
               {selected.map((listing) => {
                 const media = listing.post?.media?.[0];
                 const image = media?.url || media?.preview_image_url;
+                const collectionKey = listingCollectionKey(listing);
                 return (
-                  <article className="compare-vehicle-head" key={listing.id}>
-                    <button type="button" onClick={() => toggleCompare(listing.id)} aria-label={`Remove ${vehicleTitle(listing)} from comparison`}><X size={15}/></button>
+                  <article className="compare-vehicle-head" key={collectionKey}>
+                    <button type="button" onClick={() => toggleCompare(collectionKey, listing.id)} aria-label={`Remove ${vehicleTitle(listing)} from comparison`}><X size={15}/></button>
                     {image ? <img src={image} alt={vehicleTitle(listing)} /> : <div className="compare-image-placeholder"><CarFront size={25}/></div>}
-                    <small>Listing #{String(listing.id).padStart(4, "0")}</small>
+                    <small>REF {listingShortReference(listing)}</small>
                     <strong>{vehicleTitle(listing)}</strong>
                     <span>{formatPrice(listing.price, listing.currency)}</span>
-                    <Link href={`/listings/${listing.id}`}>View listing <ArrowUpRight size={14}/></Link>
+                    <Link href={listingHref(listing)}>View listing <ArrowUpRight size={14}/></Link>
                   </article>
                 );
               })}
 
               {rows.flatMap((row) => [
                 <div className="compare-row-label" key={`${row.label}-label`}>{row.label}</div>,
-                ...selected.map((listing) => <div className="compare-cell" key={`${row.label}-${listing.id}`}>{row.value(listing)}</div>),
+                ...selected.map((listing) => <div className="compare-cell" key={`${row.label}-${listingCollectionKey(listing)}`}>{row.value(listing)}</div>),
               ])}
             </div>
           </section>

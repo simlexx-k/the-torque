@@ -15,7 +15,11 @@ export type FeatureEvidence = {
 };
 
 export type Listing = {
+  // Numeric ids remain in the API for backwards compatibility, but the public
+  // web app routes exclusively through public_id when the backend provides it.
   id: number;
+  public_id?: string | null;
+  public_url?: string | null;
   post_id: number;
   x_url: string;
   make?: string | null;
