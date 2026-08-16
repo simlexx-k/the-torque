@@ -81,13 +81,21 @@ The Next.js proxy already forwards those headers when both values are configured
 
 ## 3. Vercel frontend
 
-Create/import the GitHub project in Vercel and set the **Root Directory** to:
+The Next.js application lives in `frontend/`, while the repository root also contains the Python backend. If Vercel allows editing the project Root Directory, `frontend` works. If the Root Directory field is unavailable or locked, leave the Vercel project at the repository root and use the repository-level `vercel.json` instead.
 
-```text
-frontend
+The root `vercel.json` explicitly configures the nested frontend:
+
+```json
+{
+  "framework": "nextjs",
+  "installCommand": "npm --prefix frontend install --no-audit --no-fund",
+  "buildCommand": "npm --prefix frontend run build",
+  "devCommand": "npm --prefix frontend run dev",
+  "outputDirectory": "frontend/.next"
+}
 ```
 
-Next.js requires no custom build command beyond the framework defaults.
+Do not combine this with a `frontend` Root Directory override, because that can produce doubled paths such as `frontend/frontend/.next`.
 
 Set this server-side environment variable in Production and Preview as appropriate:
 
