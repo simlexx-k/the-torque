@@ -10,106 +10,120 @@ Vercel / Next.js
   |
   | server-side /api/torque/* proxy
   v
-https://api.example.com
+https://torque-api.a3slabs.co.ke
   |
   v
 Cloudflare Tunnel
   |
   v
-127.0.0.1:8000 on VPS
+cloudflared container
   |
+  | Docker network: http://app:8000
   v
 FastAPI container ---> PostgreSQL container
 ```
 
-The browser never needs the backend hostname or any backend secret. The Next.js route handler proxies read-only API calls server-to-server.
+The browser never needs the VPS IP, backend hostname internals, or backend secrets. The Next.js route handler proxies read-only API calls server-to-server.
 
-## 1. VPS backend
+## 1. VPS environment
 
-Copy `.env.example` to `.env` on the VPS and configure the X/OpenAI/database secrets. For production network hardening, use values similar to:
+Copy `.env.example` to `.env` and configure the runtime secrets. At minimum:
 
 ```env
-TRUSTED_HOSTS=api.example.com,127.0.0.1,localhost
+POSTGRES_PASSWORD=...
+X_BEARER_TOKEN=...
+X_TARGET_USERNAME=...
+OPENAI_API_KEY=...
+ADMIN_API_KEY=...
+CLOUDFLARED_TOKEN=...
+
+TRUSTED_HOSTS=torque-api.a3slabs.co.ke,127.0.0.1,localhost
 CORS_ALLOWED_ORIGINS=
 ```
 
-`CORS_ALLOWED_ORIGINS` can remain empty because Vercel calls FastAPI server-to-server. If a trusted browser client later calls FastAPI directly, explicitly list its origins as a comma-separated value rather than using a wildcard.
+Never commit `.env`. It is ignored by Git.
 
-Start the backend:
+If a Cloudflare Tunnel token has been pasted into chat, logs, tickets, source code, or another place outside the VPS secret store, rotate the tunnel token in Cloudflare before using it in production.
+
+## 2. Docker Compose stack
+
+The VPS stack contains three services:
+
+- `db` — PostgreSQL 17 with a startup grace period for first-volume initialization.
+- `app` — FastAPI, reachable on the Compose network as `http://app:8000` and additionally on VPS loopback at `127.0.0.1:8000` for local diagnostics.
+- `cloudflared` — remotely managed Cloudflare Tunnel connector using `CLOUDFLARED_TOKEN` from `.env`.
+
+Start the stack in the background:
 
 ```bash
 docker compose up -d --build
 ```
 
-The Compose file binds FastAPI to `127.0.0.1:8000` only. Do not open TCP/8000 in the VPS firewall.
+Inspect state:
 
-Verify locally on the VPS:
+```bash
+docker compose ps
+```
+
+Follow logs when required:
+
+```bash
+docker compose logs -f db app cloudflared
+```
+
+Verify FastAPI locally on the VPS:
 
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-## 2. Cloudflare Tunnel
+The FastAPI host port is bound to loopback only. Do not expose TCP/8000 in the VPS firewall.
 
-Publish one API hostname (for example `api.example.com`) to `http://127.0.0.1:8000`.
+## 3. Remotely managed Cloudflare Tunnel
 
-For a remotely managed tunnel, create the tunnel in the Cloudflare dashboard, install `cloudflared` on the VPS using the generated command, and add a published-application route whose service URL is:
+This deployment uses the token-based, remotely managed tunnel model. The Cloudflare dashboard owns the published hostname configuration; no local tunnel UUID/credentials JSON is required.
+
+Configure the published application route as:
 
 ```text
-http://127.0.0.1:8000
+Hostname: torque-api.a3slabs.co.ke
+Service:  http://app:8000
 ```
 
-For a locally managed tunnel, copy `deploy/cloudflared/config.yml.example`, substitute the tunnel UUID, credentials path and API hostname, then install it as a Linux service. A typical command is:
+The service hostname is `app`, not `127.0.0.1`, because `cloudflared` itself runs inside Docker. Docker DNS resolves `app` to the FastAPI container on the shared Compose network.
+
+Do not launch a second standalone `docker run cloudflare/cloudflared ...` connector once the Compose-managed `cloudflared` service is running. Multiple replicas are valid, but a second ad-hoc container is unnecessary for this single-VPS deployment.
+
+Verify the public route after the Compose stack is healthy:
 
 ```bash
-sudo cloudflared --config /etc/cloudflared/config.yml service install
-sudo systemctl enable --now cloudflared
+curl https://torque-api.a3slabs.co.ke/health
 ```
-
-Keep inbound VPS firewall rules closed except for administration paths you actually need. `cloudflared` establishes outbound tunnel connections.
 
 ### Optional: protect the API with Cloudflare Access
 
-For a stronger production posture, place the API hostname behind a Cloudflare Access Service Auth policy and create a service token for Vercel. Add the generated values to Vercel as encrypted environment variables:
+For a stronger production posture, place the API hostname behind a Cloudflare Access Service Auth policy and create a service token for Vercel. Add these to Vercel as encrypted server-side environment variables:
 
 ```env
 CF_ACCESS_CLIENT_ID=...
 CF_ACCESS_CLIENT_SECRET=...
 ```
 
-The Next.js proxy already forwards those headers when both values are configured. This allows the public website to remain usable while direct requests to the backend hostname can be denied by Access.
+The Next.js proxy forwards the Access headers when both values are configured.
 
-## 3. Vercel frontend
+## 4. Vercel frontend
 
-The Next.js application lives in `frontend/`, while the repository root also contains the Python backend. If Vercel allows editing the project Root Directory, `frontend` works. If the Root Directory field is unavailable or locked, leave the Vercel project at the repository root and use the repository-level `vercel.json` instead.
-
-The root `vercel.json` explicitly configures the nested frontend:
-
-```json
-{
-  "framework": "nextjs",
-  "installCommand": "npm --prefix frontend install --no-audit --no-fund",
-  "buildCommand": "npm --prefix frontend run build",
-  "devCommand": "npm --prefix frontend run dev",
-  "outputDirectory": "frontend/.next"
-}
-```
-
-Do not combine this with a `frontend` Root Directory override, because that can produce doubled paths such as `frontend/frontend/.next`.
-
-Set this server-side environment variable in Production and Preview as appropriate:
+The Vercel project uses the `frontend/` application as its working directory. Keep the deployment configuration that successfully builds the Next.js app and set:
 
 ```env
-TORQUE_API_BASE_URL=https://api.example.com
+TORQUE_API_BASE_URL=https://torque-api.a3slabs.co.ke
 ```
 
-Do **not** prefix this variable with `NEXT_PUBLIC_`; it is intentionally server-side and used only by the Next.js route handler.
-
-If Cloudflare Access Service Auth is enabled, also add `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to Vercel as sensitive values.
+Do not prefix this variable with `NEXT_PUBLIC_`; it is intentionally server-side and used by the Next.js route handler.
 
 After changing Vercel environment variables, redeploy so the new deployment receives them.
 
-## 4. Request flow
+## 5. Request flow
 
 Frontend code calls same-origin routes such as:
 
@@ -122,19 +136,21 @@ Frontend code calls same-origin routes such as:
 Vercel resolves those through the Next.js route handler, which calls:
 
 ```text
-https://api.example.com/api/overview
-https://api.example.com/api/listings
-https://api.example.com/api/listings/123
+https://torque-api.a3slabs.co.ke/api/overview
+https://torque-api.a3slabs.co.ke/api/listings
+https://torque-api.a3slabs.co.ke/api/listings/123
 ```
 
-Manual ingestion is deliberately not proxied by the frontend. `POST /api/ingest/run` remains protected with `X-Admin-Key` and should be invoked only from trusted administrative tooling.
+Manual ingestion remains protected. `POST /api/ingest/run` requires `X-Admin-Key` and is not exposed as a public frontend action.
 
-## 5. Recommended production checks
+## 6. Production checks
 
-- `https://api.example.com/health` returns `status: ok` (or is reachable with the Access service token if Access is enabled).
-- Vercel deployment can load `/api/torque/overview`.
+- `docker compose ps` shows `db` and `app` healthy and `cloudflared` running.
+- `curl http://127.0.0.1:8000/health` succeeds on the VPS.
+- `curl https://torque-api.a3slabs.co.ke/health` succeeds through Cloudflare.
+- Cloudflare's published route points to `http://app:8000`.
 - VPS firewall does not expose port 8000 publicly.
-- PostgreSQL is not published on a host port.
-- `TRUSTED_HOSTS` contains the API hostname and loopback hosts.
-- X, OpenAI, PostgreSQL and admin credentials exist only on the VPS.
-- Cloudflare Access service-token credentials, if used, exist only in Vercel server-side environment variables.
+- PostgreSQL has no published host port.
+- `TRUSTED_HOSTS` contains `torque-api.a3slabs.co.ke`, `127.0.0.1`, and `localhost`.
+- X, OpenAI, PostgreSQL, admin, and tunnel credentials exist only in the VPS `.env` file or an equivalent secret store.
+- Vercel stores only `TORQUE_API_BASE_URL` and, if Access is enabled, the Cloudflare Access service-token credentials.
