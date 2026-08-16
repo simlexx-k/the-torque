@@ -48,6 +48,22 @@ export type Listing = {
   };
 };
 
+export type SignalPost = {
+  id: number;
+  x_post_id: string;
+  text: string;
+  created_at?: string | null;
+  classification: string;
+  ai_status: string;
+  ai_provider?: string | null;
+  ai_model?: string | null;
+  ai_attempts?: number;
+  ai_error?: string | null;
+  listing_count: number;
+  x_url: string;
+  media: MediaItem[];
+};
+
 export type TorqueStatus = {
   target?: string | null;
   x_user_id?: string | null;
@@ -56,6 +72,12 @@ export type TorqueStatus = {
   daytime_poll_seconds: number;
   nighttime_poll_seconds: number;
   timezone: string;
+  ai_provider?: string;
+  ai_model?: string;
+  ai_configured?: boolean;
+  ai_failed_posts?: number;
+  ai_waiting_posts?: number;
+  ai_retry_max_attempts?: number;
 };
 
 export type Overview = {
@@ -64,6 +86,8 @@ export type Overview = {
   available_total: number;
   sold_total: number;
   enriched_posts: number;
+  failed_posts?: number;
+  waiting_posts?: number;
   enrichment_rate: number;
   latest_post_at?: string | null;
   latest_listing_at?: string | null;
@@ -76,5 +100,7 @@ export type IngestResult = {
   inserted_posts?: number;
   enriched_posts?: number;
   listings_created?: number;
+  retried_posts?: number;
+  recovered_posts?: number;
   [key: string]: unknown;
 };
