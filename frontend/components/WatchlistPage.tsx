@@ -24,17 +24,17 @@ export default function WatchlistPage() {
       <section className="page-hero compact-page-hero">
         <div>
           <div className="page-kicker"><span>04</span> WATCHLIST</div>
-          <h1>Your shortlist,<br/><em>kept in signal.</em></h1>
-          <p>Save vehicles while browsing and return to a focused shortlist without creating an account.</p>
+          <h1>Keep the vehicles<br/><em>you want to revisit.</em></h1>
+          <p>Save interesting listings as you browse, then come back to compare prices, specifications and seller details without creating an account.</p>
         </div>
         <div className="page-hero-stat"><Bookmark size={18}/><span><small>SAVED VEHICLES</small><strong>{saved.length.toString().padStart(2, "0")}</strong></span></div>
       </section>
 
       {saved.length > 0 && (
         <section className="collection-toolbar">
-          <div><Bookmark size={16}/><span>{saved.length} saved locally in this browser</span></div>
+          <div><Bookmark size={16}/><span>{saved.length} saved on this device</span></div>
           <div>
-            <Link href="/compare" className="collection-link"><GitCompareArrows size={15}/> Open comparison</Link>
+            <Link href="/compare" className="collection-link"><GitCompareArrows size={15}/> Compare saved vehicles</Link>
             <button type="button" onClick={clearSaved}><Trash2 size={15}/> Clear watchlist</button>
           </div>
         </section>
@@ -47,10 +47,10 @@ export default function WatchlistPage() {
       ) : (
         <section className="product-state collection-empty-state">
           <div className="state-icon-orbit"><Bookmark size={24}/></div>
-          <small>NO SAVED VEHICLES</small>
-          <h2>Build a shortlist from the inventory.</h2>
-          <p>Tap Save on any vehicle card. Your watchlist stays on this device and updates instantly.</p>
-          <Link href="/inventory" className="product-primary-button"><Search size={16}/> Browse inventory</Link>
+          <small>YOUR WATCHLIST IS EMPTY</small>
+          <h2>Save a few vehicles to come back to.</h2>
+          <p>Use Save on any vehicle card. Your shortlist stays in this browser and is available immediately.</p>
+          <Link href="/inventory" className="product-primary-button"><Search size={16}/> Browse listings</Link>
         </section>
       )}
     </main>
