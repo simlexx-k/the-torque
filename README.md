@@ -47,6 +47,7 @@ X_BEARER_TOKEN=...
 X_TARGET_USERNAME=dealer_handle_without_at
 OPENAI_API_KEY=...
 POSTGRES_PASSWORD=use-a-strong-password
+ADMIN_API_KEY=use-another-long-random-secret
 ```
 
 Never commit credentials. For read-only public X data this service uses the app Bearer Token; no user-context OAuth credentials are needed.
@@ -79,7 +80,7 @@ Useful endpoints:
 
 - `GET /health`
 - `GET /api/status`
-- `POST /api/ingest/run`
+- `POST /api/ingest/run` (requires `X-Admin-Key`)
 - `GET /api/posts`
 - `GET /api/listings`
 
@@ -87,7 +88,7 @@ Useful endpoints:
 
 With no stored `last_seen_post_id`, the service retrieves up to `INITIAL_LOOKBACK_POSTS` (default 100) from the configured account. After that, it stores the newest X Post ID and supplies it as `since_id` on subsequent timeline requests.
 
-If `OPENAI_API_KEY` is absent, candidate posts are safely retained with `ai_status=waiting_for_ai_key`; raw ingestion does not fail.
+If `OPENAI_API_KEY` is absent, candidate posts are safely retained with `ai_status=waiting_for_ai_key`; raw ingestion does not fail. The initial run intentionally stops after the configured lookback page instead of traversing the account history.
 
 ## Data-quality rules
 
@@ -105,3 +106,7 @@ The MVP is intentionally backend-first. Recommended follow-on work:
 4. Add an admin review queue for medium-confidence extractions.
 5. Add image/object storage only after confirming the desired X-content retention policy.
 6. Build the searchable Next.js listing dashboard after extraction accuracy is measured.
+
+## Deployment note
+
+Run a single scheduler-enabled application replica for the MVP. If the API is later horizontally scaled, move scheduling to a dedicated worker or add a distributed lock so replicas do not duplicate X polling.

@@ -85,7 +85,7 @@ class XClient:
                     media_by_key[key] = media
 
             pagination_token = payload.get("meta", {}).get("next_token")
-            if not pagination_token:
+            if since_id is None or not pagination_token:
                 break
 
         return XPostBatch(posts=posts, media_by_key=media_by_key)

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     app_name: str = "The Torque"
     environment: str = "development"
     database_url: str = "sqlite:///./the_torque.db"
+    admin_api_key: str = ""
 
     x_bearer_token: str = ""
     x_target_username: str = ""

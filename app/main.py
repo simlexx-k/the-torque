@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,16 @@ logger = logging.getLogger(__name__)
 def get_db():
     with SessionLocal() as session:
         yield session
+
+
+def require_admin(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    if not settings.admin_api_key:
+        raise HTTPException(status_code=503, detail="ADMIN_API_KEY is not configured")
+    if x_admin_key is None or not secrets.compare_digest(x_admin_key, settings.admin_api_key):
+        raise HTTPException(status_code=401, detail="Invalid admin key")
 
 
 @asynccontextmanager
@@ -72,7 +83,7 @@ def status(db: Session = Depends(get_db), settings: Settings = Depends(get_setti
     }
 
 
-@app.post("/api/ingest/run")
+@app.post("/api/ingest/run", dependencies=[Depends(require_admin)])
 def run_ingestion(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     try:
         return IngestionService(settings).run_once(db)
@@ -92,6 +103,7 @@ def posts(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(ge
             "created_at": row.x_created_at,
             "classification": row.classification,
             "ai_status": row.ai_status,
+            "x_url": f"https://x.com/{row.source.username}/status/{row.x_post_id}",
             "media": [
                 {"type": media.media_type, "url": media.url, "preview_image_url": media.preview_image_url}
                 for media in row.media
@@ -108,6 +120,7 @@ def listings(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends
         {
             "id": row.id,
             "post_id": row.post_id,
+            "x_url": f"https://x.com/{row.post.source.username}/status/{row.post.x_post_id}",
             "make": row.make,
             "model": row.model,
             "generation": row.generation,
