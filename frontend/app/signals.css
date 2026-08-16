@@ -1,0 +1,74 @@
+/* Raw seller signal feed */
+.signal-provider-card { min-width:250px; padding:19px; display:flex; align-items:center; gap:13px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(255,255,255,.025); color:var(--acid); }
+.signal-provider-card > span { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.signal-provider-card small { color:#6e737a; font:8px var(--mono); letter-spacing:.12em; }
+.signal-provider-card strong { color:#f0f0ed; font:18px var(--mono); font-weight:400; text-transform:uppercase; }
+.signal-provider-card em { color:#7f848b; font:9px var(--mono); font-style:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.signal-summary-strip { display:grid; grid-template-columns:repeat(4,1fr); background:#111317; color:white; border-bottom:1px solid #26292e; }
+.signal-summary-strip article { min-height:122px; padding:25px clamp(18px,2.5vw,35px); display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,.08); }
+.signal-summary-strip article:last-child { border-right:0; }
+.signal-summary-strip small { color:#686e75; font:8px var(--mono); letter-spacing:.13em; }
+.signal-summary-strip strong { margin:8px 0 6px; font:31px var(--mono); font-weight:400; }
+.signal-summary-strip span { color:#7e838a; font-size:9px; }
+.signal-summary-strip article.attention strong { color:#ff8a55; }
+
+.signal-workbench { padding:34px clamp(20px,5vw,76px) 80px; }
+.signal-filter-row { padding:10px; margin-bottom:17px; display:flex; align-items:center; justify-content:space-between; gap:14px; border:1px solid var(--line-dark); border-radius:11px; background:rgba(255,255,255,.62); }
+.signal-filter-tabs { display:flex; gap:5px; flex-wrap:wrap; }
+.signal-filter-tabs button,.signal-refresh { min-height:36px; padding:0 12px; border:1px solid rgba(13,14,16,.09); border-radius:7px; background:transparent; color:#787872; cursor:pointer; font-size:9px; }
+.signal-filter-tabs button:hover,.signal-filter-tabs button.active { background:var(--ink); color:white; border-color:var(--ink); }
+.signal-filter-tabs button.active { color:var(--acid); }
+.signal-refresh { display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.signal-refresh:hover { border-color:#7f807c; color:var(--ink); }
+.signal-refresh:disabled { opacity:.55; cursor:wait; }
+
+.signal-feed-list { display:flex; flex-direction:column; gap:12px; }
+.signal-record { border:1px solid var(--line-dark); border-radius:13px; background:#f8f7f3; overflow:hidden; }
+.signal-record.signal-error { border-color:rgba(255,79,79,.25); }
+.signal-record.signal-waiting_for_ai_key { border-color:rgba(255,194,75,.28); }
+.signal-record-meta { min-height:44px; padding:0 17px; display:flex; align-items:center; gap:15px; border-bottom:1px solid var(--line-dark); color:#97958f; font:8px var(--mono); letter-spacing:.07em; text-transform:uppercase; }
+.signal-state { min-height:25px; padding:0 8px; display:inline-flex; align-items:center; gap:6px; border-radius:99px; background:#eceae3; color:#5f625f; }
+.signal-state-complete { background:rgba(117,156,75,.12); color:#4f7040; }
+.signal-state-error { background:rgba(255,79,79,.11); color:#a84545; }
+.signal-state-waiting_for_ai_key { background:rgba(255,174,68,.12); color:#966b2b; }
+.signal-state-pending { background:rgba(71,113,175,.12); color:#486b9b; }
+.signal-record-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); gap:0; }
+.signal-copy { min-width:0; padding:20px; display:flex; flex-direction:column; }
+.signal-copy > p { margin:0; color:#232529; font-size:13px; line-height:1.65; white-space:pre-wrap; overflow-wrap:anywhere; }
+.signal-record-stats { margin-top:17px; display:flex; flex-wrap:wrap; gap:7px; }
+.signal-record-stats span { min-height:29px; padding:0 8px; display:flex; align-items:center; gap:5px; border:1px solid var(--line-dark); border-radius:6px; color:#7c7b75; font:8px var(--mono); }
+.signal-error-box { margin-top:14px; padding:11px 12px; display:flex; gap:9px; align-items:flex-start; border:1px solid rgba(255,79,79,.18); border-radius:8px; background:rgba(255,79,79,.055); color:#a84e4e; }
+.signal-error-box > span { display:flex; flex-direction:column; gap:4px; min-width:0; font-size:9px; line-height:1.45; overflow-wrap:anywhere; }
+.signal-error-box strong { color:#803838; font-size:9px; }
+.signal-record-footer { margin-top:auto; padding-top:19px; display:flex; align-items:center; justify-content:space-between; gap:15px; color:#989791; font:8px var(--mono); }
+.signal-record-footer a { display:flex; align-items:center; gap:5px; color:#333538; font-weight:700; }
+.signal-record-footer a:hover { color:#000; }
+.signal-media-grid { min-height:250px; padding:8px; display:grid; gap:5px; background:#17191d; }
+.signal-media-grid.count-1 { grid-template-columns:1fr; }
+.signal-media-grid.count-2 { grid-template-columns:1fr 1fr; }
+.signal-media-grid.count-3,.signal-media-grid.count-4 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+.signal-media-grid img { width:100%; height:100%; min-height:120px; object-fit:cover; border-radius:5px; background:#202329; }
+.signal-media-grid.count-3 img:first-child { grid-row:1 / 3; }
+.signal-empty { min-height:250px; display:grid; place-items:center; align-content:center; gap:10px; border:1px dashed var(--line-dark); border-radius:12px; color:#92918c; font-size:11px; }
+.signal-empty.error { color:#b05252; }
+
+@media (max-width: 980px) {
+  .signal-summary-strip { grid-template-columns:1fr 1fr; }
+  .signal-summary-strip article:nth-child(2) { border-right:0; }
+  .signal-record-grid { grid-template-columns:1fr; }
+  .signal-media-grid { min-height:300px; }
+}
+
+@media (max-width: 680px) {
+  .signal-provider-card { display:none; }
+  .signal-summary-strip { grid-template-columns:1fr 1fr; }
+  .signal-summary-strip article { min-height:105px; padding:20px 16px; }
+  .signal-filter-row { align-items:stretch; flex-direction:column; }
+  .signal-filter-tabs { display:grid; grid-template-columns:1fr 1fr; }
+  .signal-refresh { justify-content:center; }
+  .signal-record-meta { padding:9px 12px; min-height:auto; flex-wrap:wrap; gap:7px 10px; }
+  .signal-copy { padding:16px; }
+  .signal-record-footer { align-items:flex-start; flex-direction:column; }
+  .signal-media-grid { min-height:230px; }
+}
