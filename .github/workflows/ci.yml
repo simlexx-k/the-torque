@@ -20,11 +20,14 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node -e "JSON.parse(require('fs').readFileSync('vercel.json', 'utf8'))"
-      - run: npm --prefix frontend install --no-audit --no-fund
-      - run: npm --prefix frontend run build
+      - run: node -e "JSON.parse(require('fs').readFileSync('../vercel.json', 'utf8'))"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
