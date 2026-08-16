@@ -81,13 +81,21 @@ The Next.js proxy already forwards those headers when both values are configured
 
 ## 3. Vercel frontend
 
-Create/import the GitHub project in Vercel and set the **Root Directory** to:
+The repository contains the Next.js application in `frontend/`, while the repository root also contains the Python backend. Normally Vercel would use **Root Directory = `frontend`**. If the Vercel project does not allow that setting to be changed, the repository-level `vercel.json` handles the nested frontend explicitly instead.
 
-```text
-frontend
+The root `vercel.json` configures:
+
+```json
+{
+  "framework": "nextjs",
+  "installCommand": "npm install --prefix frontend --no-audit --no-fund",
+  "buildCommand": "npm run build --prefix frontend",
+  "devCommand": "npm run dev --prefix frontend",
+  "outputDirectory": "frontend/.next"
+}
 ```
 
-Next.js requires no custom build command beyond the framework defaults.
+Therefore the Vercel project can remain rooted at the repository root. Do not additionally set a `frontend` Root Directory when using this configuration, otherwise paths can be doubled.
 
 Set this server-side environment variable in Production and Preview as appropriate:
 
@@ -100,6 +108,10 @@ Do **not** prefix this variable with `NEXT_PUBLIC_`; it is intentionally server-
 If Cloudflare Access Service Auth is enabled, also add `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to Vercel as sensitive values.
 
 After changing Vercel environment variables, redeploy so the new deployment receives them.
+
+### Important branch note
+
+Vercel production deployments normally follow the repository's production/default branch. The application and `vercel.json` must exist on that branch. Until PR #1 is merged, `main` does not contain the full application.
 
 ## 4. Request flow
 
