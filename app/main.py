@@ -53,11 +53,8 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title="The Torque", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="The Torque", version="0.4.0", lifespan=lifespan)
 
-# The Vercel frontend normally talks to FastAPI through its server-side proxy,
-# which means browser CORS is not required. This remains configurable for
-# trusted direct-browser consumers or future admin surfaces.
 if settings.cors_origins:
     app.add_middleware(
         CORSMiddleware,
@@ -84,6 +81,12 @@ def _serialize_media(media) -> dict:
         "width": media.width,
         "height": media.height,
     }
+
+
+def _post_ai_meta(post: Post) -> dict:
+    payload = post.ai_payload if isinstance(post.ai_payload, dict) else {}
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+    return meta
 
 
 def _serialize_listing(row: Listing) -> dict:
@@ -135,13 +138,17 @@ def health(settings: Settings = Depends(get_settings)):
         "scheduler_enabled": settings.scheduler_enabled,
         "target_configured": bool(settings.x_target_username),
         "x_credentials_configured": bool(settings.x_bearer_token),
-        "ai_configured": bool(settings.openai_api_key),
+        "ai_provider": settings.ai_provider,
+        "ai_model": settings.ai_model,
+        "ai_configured": settings.ai_configured,
     }
 
 
 @app.get("/api/status")
 def status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     source = db.scalar(select(Source).where(Source.username == settings.x_target_username)) if settings.x_target_username else None
+    failed_ai = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "error")) or 0
+    waiting_ai = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "waiting_for_ai_key")) or 0
     return {
         "target": settings.x_target_username or None,
         "x_user_id": source.x_user_id if source else None,
@@ -150,6 +157,12 @@ def status(db: Session = Depends(get_db), settings: Settings = Depends(get_setti
         "daytime_poll_seconds": settings.daytime_poll_seconds,
         "nighttime_poll_seconds": settings.nighttime_poll_seconds,
         "timezone": settings.scheduler_timezone,
+        "ai_provider": settings.ai_provider,
+        "ai_model": settings.ai_model,
+        "ai_configured": settings.ai_configured,
+        "ai_failed_posts": failed_ai,
+        "ai_waiting_posts": waiting_ai,
+        "ai_retry_max_attempts": settings.ai_retry_max_attempts,
     }
 
 
@@ -158,6 +171,8 @@ def overview(db: Session = Depends(get_db)):
     listings_total = db.scalar(select(func.count(Listing.id))) or 0
     posts_total = db.scalar(select(func.count(Post.id))) or 0
     enriched_posts = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "complete")) or 0
+    failed_posts = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "error")) or 0
+    waiting_posts = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "waiting_for_ai_key")) or 0
     available_total = db.scalar(select(func.count(Listing.id)).where(func.lower(Listing.status) == "available")) or 0
     sold_total = db.scalar(select(func.count(Listing.id)).where(func.lower(Listing.status) == "sold")) or 0
     latest_post_at = db.scalar(select(func.max(Post.x_created_at)))
@@ -169,6 +184,8 @@ def overview(db: Session = Depends(get_db)):
         "available_total": available_total,
         "sold_total": sold_total,
         "enriched_posts": enriched_posts,
+        "failed_posts": failed_posts,
+        "waiting_posts": waiting_posts,
         "enrichment_rate": round(enrichment_rate, 1),
         "latest_post_at": latest_post_at,
         "latest_listing_at": latest_listing_at,
@@ -184,22 +201,53 @@ def run_ingestion(db: Session = Depends(get_db), settings: Settings = Depends(ge
         raise HTTPException(status_code=502, detail=str(exc)[:1000]) from exc
 
 
+@app.post("/api/enrichment/retry-failed", dependencies=[Depends(require_admin)])
+def retry_failed_enrichment(
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    return IngestionService(settings).retry_failed(db, limit=limit)
+
+
+@app.post("/api/posts/{post_id}/retry-enrichment", dependencies=[Depends(require_admin)])
+def retry_post_enrichment(
+    post_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    post = db.get(Post, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.ai_status not in {"error", "waiting_for_ai_key"}:
+        raise HTTPException(status_code=409, detail=f"Post is not retryable from state {post.ai_status}")
+    return IngestionService(settings).retry_failed(db, post_id=post_id, force=True)
+
+
 @app.get("/api/posts")
 def posts(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
     rows = db.scalars(select(Post).order_by(desc(Post.x_created_at), desc(Post.id)).limit(limit)).all()
-    return [
-        {
-            "id": row.id,
-            "x_post_id": row.x_post_id,
-            "text": row.text,
-            "created_at": row.x_created_at,
-            "classification": row.classification,
-            "ai_status": row.ai_status,
-            "x_url": f"https://x.com/{row.source.username}/status/{row.x_post_id}",
-            "media": [_serialize_media(media) for media in row.media],
-        }
-        for row in rows
-    ]
+    result = []
+    for row in rows:
+        meta = _post_ai_meta(row)
+        result.append(
+            {
+                "id": row.id,
+                "x_post_id": row.x_post_id,
+                "text": row.text,
+                "created_at": row.x_created_at,
+                "classification": row.classification,
+                "ai_status": row.ai_status,
+                "ai_provider": meta.get("provider"),
+                "ai_model": meta.get("model"),
+                "ai_attempts": meta.get("attempts", 0),
+                "ai_error": meta.get("last_error") or ((row.ai_payload or {}).get("error") if isinstance(row.ai_payload, dict) else None),
+                "listing_count": len(row.listings),
+                "x_url": f"https://x.com/{row.source.username}/status/{row.x_post_id}",
+                "media": [_serialize_media(media) for media in row.media],
+            }
+        )
+    return result
 
 
 @app.get("/api/listings")

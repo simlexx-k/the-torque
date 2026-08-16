@@ -15,6 +15,7 @@ import {
   GitCompareArrows,
   Home,
   LayoutGrid,
+  RadioTower,
   Search,
   ServerCog,
   TrendingUp,
@@ -28,13 +29,14 @@ import { useVehicleCollections } from "@/lib/useVehicleCollections";
 const primaryNav = [
   { href: "/", label: "Home", icon: Home },
   { href: "/inventory", label: "Inventory", icon: LayoutGrid },
+  { href: "/signals", label: "Signals", icon: RadioTower },
   { href: "/market", label: "Market", icon: TrendingUp },
   { href: "/watchlist", label: "Watchlist", icon: Bookmark },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
   { href: "/system", label: "System", icon: ServerCog },
 ];
 
-const mobileNav = primaryNav.filter((item) => ["/", "/inventory", "/watchlist", "/compare", "/system"].includes(item.href));
+const mobileNav = primaryNav.filter((item) => ["/", "/inventory", "/signals", "/watchlist", "/compare"].includes(item.href));
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";

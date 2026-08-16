@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -14,6 +14,8 @@ from app.schemas import ListingAnalysis, VehicleCandidate
 from app.x_client import XClient
 
 logger = logging.getLogger(__name__)
+
+RETRYABLE_AI_STATUSES = ("error", "waiting_for_ai_key")
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -66,6 +68,20 @@ def _make_listing(post_id: int, position: int, candidate: VehicleCandidate) -> L
     )
 
 
+def _ai_meta(post: Post) -> dict[str, Any]:
+    payload = post.ai_payload if isinstance(post.ai_payload, dict) else {}
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+    return dict(meta)
+
+
+def _attempt_count(post: Post) -> int:
+    value = _ai_meta(post).get("attempts", 0)
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
 class IngestionService:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -81,10 +97,162 @@ class IngestionService:
             session.flush()
         return source
 
+    def _mark_waiting_for_provider(self, session: Session, post: Post) -> None:
+        post.ai_status = "waiting_for_ai_key"
+        if post.classification == "unclassified":
+            post.classification = "unknown"
+        post.ai_payload = {
+            "_meta": {
+                **_ai_meta(post),
+                "provider": self.settings.ai_provider,
+                "model": self.settings.ai_model,
+                "attempts": _attempt_count(post),
+                "last_error": f"{self.settings.ai_provider} API key is not configured",
+                "last_attempt_at": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+        session.commit()
+
+    def _record_ai_error(
+        self,
+        session: Session,
+        post: Post,
+        exc: Exception,
+        *,
+        attempts: int,
+        attempted_at: str,
+    ) -> None:
+        post.ai_status = "error"
+        post.ai_payload = {
+            "_meta": {
+                **_ai_meta(post),
+                "provider": self.settings.ai_provider,
+                "model": self.settings.ai_model,
+                "attempts": attempts,
+                "last_attempt_at": attempted_at,
+                "last_error": str(exc)[:1000],
+            },
+            "error": str(exc)[:1000],
+        }
+        session.commit()
+
+    def _enrich_post(self, session: Session, post: Post, enricher: VehicleEnricher | None = None) -> int:
+        if not self.settings.ai_configured:
+            self._mark_waiting_for_provider(session, post)
+            return 0
+
+        if enricher is None:
+            enricher = VehicleEnricher(self.settings)
+
+        attempts = _attempt_count(post) + 1
+        attempted_at = datetime.now(timezone.utc).isoformat()
+
+        # The model/network call happens before mutating listing rows. If the
+        # provider fails, keep the already-captured Post + Media transaction and
+        # persist only the error state; do not roll the source signal back.
+        try:
+            analysis: ListingAnalysis = enricher.analyze(post.text, _image_urls(post))
+        except Exception as exc:
+            logger.exception("AI enrichment failed for X post %s via %s", post.x_post_id, self.settings.ai_provider)
+            self._record_ai_error(session, post, exc, attempts=attempts, attempted_at=attempted_at)
+            return 0
+
+        try:
+            post.classification = analysis.classification
+            post.ai_status = "complete"
+            post.ai_payload = {
+                **analysis.model_dump(mode="json"),
+                "_meta": {
+                    "provider": enricher.provider,
+                    "model": enricher.model,
+                    "attempts": attempts,
+                    "last_attempt_at": attempted_at,
+                    "last_error": None,
+                },
+            }
+            for position, candidate in enumerate(analysis.vehicles):
+                post.listings.append(_make_listing(post.id, position, candidate))
+            session.commit()
+            return len(analysis.vehicles)
+        except Exception as exc:
+            logger.exception("Failed to persist enrichment for X post %s", post.x_post_id)
+            post_id = post.id
+            session.rollback()
+            current = session.get(Post, post_id)
+            if current is None:
+                raise
+            self._record_ai_error(session, current, exc, attempts=attempts, attempted_at=attempted_at)
+            return 0
+
+    def retry_failed(
+        self,
+        session: Session,
+        *,
+        post_id: int | None = None,
+        limit: int | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if not self.settings.ai_configured:
+            return {
+                "status": "provider_not_configured",
+                "provider": self.settings.ai_provider,
+                "attempted": 0,
+                "completed": 0,
+                "failed": 0,
+                "new_listings": 0,
+            }
+
+        if post_id is not None:
+            post = session.get(Post, post_id)
+            rows = [post] if post is not None and post.ai_status in RETRYABLE_AI_STATUSES else []
+        else:
+            retry_limit = limit or self.settings.ai_retry_batch_size
+            rows = list(
+                session.scalars(
+                    select(Post)
+                    .where(Post.ai_status.in_(RETRYABLE_AI_STATUSES))
+                    .order_by(Post.ingested_at.asc(), Post.id.asc())
+                    .limit(retry_limit)
+                ).all()
+            )
+
+        enricher = VehicleEnricher(self.settings)
+        attempted = 0
+        completed = 0
+        failed = 0
+        new_listings = 0
+        for post in rows:
+            if post is None:
+                continue
+            if not force and post.ai_status == "error" and _attempt_count(post) >= self.settings.ai_retry_max_attempts:
+                continue
+            attempted += 1
+            created = self._enrich_post(session, post, enricher)
+            refreshed = session.get(Post, post.id)
+            if refreshed is not None and refreshed.ai_status == "complete":
+                completed += 1
+                new_listings += created
+            else:
+                failed += 1
+
+        return {
+            "status": "ok",
+            "provider": self.settings.ai_provider,
+            "attempted": attempted,
+            "completed": completed,
+            "failed": failed,
+            "new_listings": new_listings,
+        }
+
     def run_once(self, session: Session) -> dict[str, Any]:
         source = self._source(session)
         if not source.enabled:
             return {"status": "disabled", "new_posts": 0, "new_listings": 0}
+
+        # Recover previously captured signals before fetching newer X posts. This
+        # prevents a transient provider outage from permanently stranding a
+        # legitimate listing in the posts table.
+        retry_result = self.retry_failed(session, limit=self.settings.ai_retry_batch_size)
 
         x_client = XClient(self.settings)
         try:
@@ -98,11 +266,18 @@ class IngestionService:
             x_client.close()
 
         if not batch.posts:
-            return {"status": "ok", "new_posts": 0, "new_listings": 0, "last_seen_post_id": source.last_seen_post_id}
+            return {
+                "status": "ok",
+                "new_posts": 0,
+                "new_listings": retry_result.get("new_listings", 0),
+                "retried_posts": retry_result.get("attempted", 0),
+                "recovered_posts": retry_result.get("completed", 0),
+                "last_seen_post_id": source.last_seen_post_id,
+            }
 
         new_posts = 0
-        new_listings = 0
-        enricher: VehicleEnricher | None = None
+        new_listings = int(retry_result.get("new_listings", 0))
+        enricher: VehicleEnricher | None = VehicleEnricher(self.settings) if self.settings.ai_configured else None
         newest_id = source.last_seen_post_id
 
         for raw in sorted(batch.posts, key=lambda item: int(item["id"])):
@@ -145,34 +320,17 @@ class IngestionService:
                 session.commit()
                 continue
 
-            if not self.settings.openai_api_key:
-                post.classification = "unknown"
-                post.ai_status = "waiting_for_ai_key"
-                session.commit()
-                continue
+            new_listings += self._enrich_post(session, post, enricher)
 
-            try:
-                if enricher is None:
-                    enricher = VehicleEnricher(self.settings)
-                analysis: ListingAnalysis = enricher.analyze(post.text, images)
-                post.classification = analysis.classification
-                post.ai_status = "complete"
-                post.ai_payload = analysis.model_dump(mode="json")
-                for position, candidate in enumerate(analysis.vehicles):
-                    post.listings.append(_make_listing(post.id, position, candidate))
-                    new_listings += 1
-                session.commit()
-            except Exception as exc:
-                logger.exception("AI enrichment failed for X post %s", post.x_post_id)
-                post.ai_status = "error"
-                post.ai_payload = {"error": str(exc)[:1000]}
-                session.commit()
-
+        source = session.get(Source, source.id) or source
         source.last_seen_post_id = newest_id
         session.commit()
         return {
             "status": "ok",
+            "provider": self.settings.ai_provider,
             "new_posts": new_posts,
             "new_listings": new_listings,
+            "retried_posts": retry_result.get("attempted", 0),
+            "recovered_posts": retry_result.get("completed", 0),
             "last_seen_post_id": source.last_seen_post_id,
         }

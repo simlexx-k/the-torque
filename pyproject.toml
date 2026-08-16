@@ -15,11 +15,11 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
-  "openai>=2.0,<3",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.4,<9"]
+openai = ["openai>=2.0,<3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
