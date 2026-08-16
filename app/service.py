@@ -113,6 +113,29 @@ class IngestionService:
         }
         session.commit()
 
+    def _record_ai_error(
+        self,
+        session: Session,
+        post: Post,
+        exc: Exception,
+        *,
+        attempts: int,
+        attempted_at: str,
+    ) -> None:
+        post.ai_status = "error"
+        post.ai_payload = {
+            "_meta": {
+                **_ai_meta(post),
+                "provider": self.settings.ai_provider,
+                "model": self.settings.ai_model,
+                "attempts": attempts,
+                "last_attempt_at": attempted_at,
+                "last_error": str(exc)[:1000],
+            },
+            "error": str(exc)[:1000],
+        }
+        session.commit()
+
     def _enrich_post(self, session: Session, post: Post, enricher: VehicleEnricher | None = None) -> int:
         if not self.settings.ai_configured:
             self._mark_waiting_for_provider(session, post)
@@ -123,12 +146,18 @@ class IngestionService:
 
         attempts = _attempt_count(post) + 1
         attempted_at = datetime.now(timezone.utc).isoformat()
+
+        # The model/network call happens before mutating listing rows. If the
+        # provider fails, keep the already-captured Post + Media transaction and
+        # persist only the error state; do not roll the source signal back.
         try:
             analysis: ListingAnalysis = enricher.analyze(post.text, _image_urls(post))
+        except Exception as exc:
+            logger.exception("AI enrichment failed for X post %s via %s", post.x_post_id, self.settings.ai_provider)
+            self._record_ai_error(session, post, exc, attempts=attempts, attempted_at=attempted_at)
+            return 0
 
-            # Failed attempts should not leave duplicate/partial listing rows if
-            # an operator explicitly retries the same source post.
-            post.listings.clear()
+        try:
             post.classification = analysis.classification
             post.ai_status = "complete"
             post.ai_payload = {
@@ -146,24 +175,13 @@ class IngestionService:
             session.commit()
             return len(analysis.vehicles)
         except Exception as exc:
-            logger.exception("AI enrichment failed for X post %s via %s", post.x_post_id, self.settings.ai_provider)
+            logger.exception("Failed to persist enrichment for X post %s", post.x_post_id)
+            post_id = post.id
             session.rollback()
-            current = session.get(Post, post.id)
+            current = session.get(Post, post_id)
             if current is None:
                 raise
-            current.ai_status = "error"
-            current.ai_payload = {
-                "_meta": {
-                    **_ai_meta(current),
-                    "provider": self.settings.ai_provider,
-                    "model": self.settings.ai_model,
-                    "attempts": attempts,
-                    "last_attempt_at": attempted_at,
-                    "last_error": str(exc)[:1000],
-                },
-                "error": str(exc)[:1000],
-            }
-            session.commit()
+            self._record_ai_error(session, current, exc, attempts=attempts, attempted_at=attempted_at)
             return 0
 
     def retry_failed(
@@ -232,7 +250,7 @@ class IngestionService:
             return {"status": "disabled", "new_posts": 0, "new_listings": 0}
 
         # Recover previously captured signals before fetching newer X posts. This
-        # is what prevents a transient AI outage from permanently stranding a
+        # prevents a transient provider outage from permanently stranding a
         # legitimate listing in the posts table.
         retry_result = self.retry_failed(session, limit=self.settings.ai_retry_batch_size)
 
