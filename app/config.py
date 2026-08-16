@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     x_max_pages_per_poll: int = Field(default=5, ge=1, le=20)
     initial_lookback_posts: int = Field(default=100, ge=5, le=100)
 
+    # Multimodal enrichment. Gemini is the default because it supports image
+    # understanding + structured JSON and has a useful free developer tier.
+    ai_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.1-flash-lite"
+    ai_max_images: int = Field(default=6, ge=0, le=8)
+    ai_retry_batch_size: int = Field(default=10, ge=1, le=100)
+    ai_retry_max_attempts: int = Field(default=5, ge=1, le=20)
+
+    # Optional backwards-compatible provider. Not required when AI_PROVIDER=gemini.
     openai_api_key: str = ""
     openai_model: str = "gpt-5.6"
     openai_image_detail: str = "auto"
@@ -41,6 +51,14 @@ class Settings(BaseSettings):
     def normalize_username(cls, value: str) -> str:
         return value.strip().lstrip("@")
 
+    @field_validator("ai_provider")
+    @classmethod
+    def validate_ai_provider(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in {"gemini", "openai"}:
+            raise ValueError("AI_PROVIDER must be gemini or openai")
+        return value
+
     @field_validator("openai_image_detail")
     @classmethod
     def validate_image_detail(cls, value: str) -> str:
@@ -48,6 +66,18 @@ class Settings(BaseSettings):
         if value not in {"low", "high", "auto"}:
             raise ValueError("OPENAI_IMAGE_DETAIL must be low, high, or auto")
         return value
+
+    @property
+    def ai_configured(self) -> bool:
+        if self.ai_provider == "gemini":
+            return bool(self.gemini_api_key)
+        if self.ai_provider == "openai":
+            return bool(self.openai_api_key)
+        return False
+
+    @property
+    def ai_model(self) -> str:
+        return self.gemini_model if self.ai_provider == "gemini" else self.openai_model
 
     @property
     def cors_origins(self) -> list[str]:
