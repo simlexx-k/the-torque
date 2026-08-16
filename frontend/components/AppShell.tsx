@@ -15,9 +15,7 @@ import {
   GitCompareArrows,
   Home,
   LayoutGrid,
-  RadioTower,
   Search,
-  ServerCog,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -28,15 +26,13 @@ import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 const primaryNav = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/inventory", label: "Inventory", icon: LayoutGrid },
-  { href: "/signals", label: "Signals", icon: RadioTower },
+  { href: "/inventory", label: "Listings", icon: LayoutGrid },
   { href: "/market", label: "Market", icon: TrendingUp },
   { href: "/watchlist", label: "Watchlist", icon: Bookmark },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
-  { href: "/system", label: "System", icon: ServerCog },
 ];
 
-const mobileNav = primaryNav.filter((item) => ["/", "/inventory", "/signals", "/watchlist", "/compare"].includes(item.href));
+const mobileNav = primaryNav;
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -117,9 +113,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="app-topbar-actions">
-          <span className="app-live-state"><Activity size={14} /><i /> LIVE</span>
+          <span className="app-live-state"><Activity size={14} /><i /> LIVE LISTINGS</span>
           <button className="command-trigger" type="button" onClick={() => setCommandOpen(true)}>
-            <Search size={16} /><span>Jump anywhere</span><kbd>⌘K</kbd>
+            <Search size={16} /><span>Find a vehicle</span><kbd>⌘K</kbd>
           </button>
         </div>
       </header>
@@ -155,19 +151,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Dialog.Overlay className="command-overlay" />
           <Dialog.Content className="command-dialog" aria-describedby={undefined}>
             <div className="command-dialog-head">
-              <div><Command size={18} /><Dialog.Title>Torque command</Dialog.Title></div>
-              <Dialog.Close asChild><button type="button" aria-label="Close command palette"><X size={17} /></button></Dialog.Close>
+              <div><Command size={18} /><Dialog.Title>Find in The Torque</Dialog.Title></div>
+              <Dialog.Close asChild><button type="button" aria-label="Close search"><X size={17} /></button></Dialog.Close>
             </div>
             <label className="command-search">
               <Search size={18} />
-              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search pages or indexed vehicles…" />
+              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search pages or vehicles…" />
               <kbd>ESC</kbd>
             </label>
 
             <div className="command-results">
               {commandRoutes.length > 0 && (
                 <section>
-                  <small className="command-section-label">NAVIGATION</small>
+                  <small className="command-section-label">BROWSE</small>
                   {commandRoutes.map(({ href, label, icon: Icon }) => (
                     <button type="button" key={href} onClick={() => navigate(href)}>
                       <span><Icon size={17} />{label}</span><small>Open page</small>
@@ -177,14 +173,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
               )}
 
               <section>
-                <small className="command-section-label">VEHICLE INTELLIGENCE</small>
+                <small className="command-section-label">VEHICLES</small>
                 {commandVehicles.length ? commandVehicles.map((listing) => (
                   <button type="button" key={listing.id} onClick={() => navigate(`/listings/${listing.id}`)}>
                     <span><CarFront size={17} />{vehicleTitle(listing)}</span>
                     <small>{listing.location || listing.status || `#${listing.id}`}</small>
                   </button>
                 )) : (
-                  <div className="command-empty"><Gauge size={18} /> No matching indexed vehicle.</div>
+                  <div className="command-empty"><Gauge size={18} /> No matching vehicle.</div>
                 )}
               </section>
             </div>
