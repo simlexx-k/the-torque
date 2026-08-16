@@ -22,7 +22,13 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://thetorque:${POSTGRES_PASSWORD:-change-me}@db:5432/thetorque
+      # Pass credentials as independent values. app/db.py builds the SQLAlchemy
+      # URL with URL.create(), so reserved characters in passwords are safe.
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USER: thetorque
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      DATABASE_NAME: thetorque
     expose:
       # Internal-only API port. cloudflared reaches this service as http://app:8000.
       # Nothing is published on the VPS host, avoiding host-port conflicts/exposure.
