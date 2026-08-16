@@ -1,21 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Tooltip } from "radix-ui";
+import { toast } from "sonner";
+import {
+  Activity,
+  Clock3,
+  Database,
+  Filter,
+  Gauge,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Signal,
+  Sparkles,
+  X,
+} from "lucide-react";
 import type { Listing, Overview, TorqueStatus } from "@/lib/types";
+import { fetchJson } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import VehicleCard from "./VehicleCard";
-import {
-  ClockIcon,
-  DatabaseIcon,
-  FilterIcon,
-  GaugeIcon,
-  RefreshIcon,
-  SearchIcon,
-  ShieldIcon,
-  SignalIcon,
-  SparkIcon,
-} from "./Icons";
 
 const emptyOverview: Overview = {
   listings_total: 0,
@@ -28,59 +35,85 @@ const emptyOverview: Overview = {
   latest_listing_at: null,
 };
 
+const reveal = {
+  hidden: { opacity: 0, y: 18 },
+  visible: { opacity: 1, y: 0 },
+};
+
 export default function Dashboard() {
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [overview, setOverview] = useState<Overview>(emptyOverview);
-  const [status, setStatus] = useState<TorqueStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState("latest");
   const [clock, setClock] = useState("--:--");
   const [nairobiHour, setNairobiHour] = useState<number | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const reduceMotion = useReducedMotion();
 
-  const load = useCallback(async () => {
-    try {
-      const [listingRes, overviewRes, statusRes] = await Promise.all([
-        fetch("/api/torque/listings?limit=100", { cache: "no-store" }),
-        fetch("/api/torque/overview", { cache: "no-store" }),
-        fetch("/api/torque/status", { cache: "no-store" }),
-      ]);
-      if (!listingRes.ok || !overviewRes.ok || !statusRes.ok) throw new Error("The intelligence API is not ready yet.");
-      const [listingData, overviewData, statusData] = await Promise.all([
-        listingRes.json(),
-        overviewRes.json(),
-        statusRes.json(),
-      ]);
-      setListings(listingData);
-      setOverview(overviewData);
-      setStatus(statusData);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reach the backend.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const listingsQuery = useQuery({
+    queryKey: ["listings", "dashboard"],
+    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=100"),
+    refetchInterval: 60_000,
+  });
+  const overviewQuery = useQuery({
+    queryKey: ["overview"],
+    queryFn: () => fetchJson<Overview>("/api/torque/overview"),
+    refetchInterval: 60_000,
+  });
+  const statusQuery = useQuery({
+    queryKey: ["status"],
+    queryFn: () => fetchJson<TorqueStatus>("/api/torque/status"),
+    refetchInterval: 60_000,
+  });
 
-  useEffect(() => {
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [load]);
+  const listings = listingsQuery.data ?? [];
+  const overview = overviewQuery.data ?? emptyOverview;
+  const status = statusQuery.data ?? null;
+  const loading = listingsQuery.isPending || overviewQuery.isPending || statusQuery.isPending;
+  const isFetching = listingsQuery.isFetching || overviewQuery.isFetching || statusQuery.isFetching;
+  const error = listingsQuery.error || overviewQuery.error || statusQuery.error;
 
   useEffect(() => {
     const timezone = status?.timezone || "Africa/Nairobi";
     const updateClock = () => {
       const now = new Date();
-      setClock(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timezone }).format(now));
-      setNairobiHour(Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: timezone }).format(now)));
+      setClock(
+        new Intl.DateTimeFormat("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+          timeZone: timezone,
+        }).format(now),
+      );
+      setNairobiHour(
+        Number(
+          new Intl.DateTimeFormat("en-GB", {
+            hour: "2-digit",
+            hourCycle: "h23",
+            timeZone: timezone,
+          }).format(now),
+        ),
+      );
     };
     updateClock();
     const timer = window.setInterval(updateClock, 30_000);
     return () => window.clearInterval(timer);
   }, [status?.timezone]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT";
+      if (event.key === "/" && !typing) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (event.key === "Escape" && document.activeElement === searchRef.current) {
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -94,7 +127,7 @@ export default function Dashboard() {
       return matchesQuery && matchesStatus;
     });
 
-    return result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       if (sort === "price-high") return (b.price || 0) - (a.price || 0);
       if (sort === "price-low") return (a.price || Number.MAX_SAFE_INTEGER) - (b.price || Number.MAX_SAFE_INTEGER);
       if (sort === "year") return (b.year || 0) - (a.year || 0);
@@ -102,12 +135,37 @@ export default function Dashboard() {
     });
   }, [listings, query, sort, statusFilter]);
 
+  const filtersActive = Boolean(query.trim()) || statusFilter !== "all" || sort !== "latest";
   const currentPoll = (() => {
     if (nairobiHour === null) return "—";
     const daytime = nairobiHour >= 6 && nairobiHour < 22;
     const seconds = daytime ? status?.daytime_poll_seconds : status?.nighttime_poll_seconds;
     return seconds ? `${Math.round(seconds / 60)} min` : "—";
   })();
+
+  const refreshAll = () => {
+    const refresh = Promise.all([
+      listingsQuery.refetch(),
+      overviewQuery.refetch(),
+      statusQuery.refetch(),
+    ]).then((results) => {
+      if (results.some((result) => result.error)) throw new Error("Some intelligence feeds did not refresh.");
+      return undefined;
+    });
+
+    toast.promise(refresh, {
+      loading: "Refreshing market signal…",
+      success: "Vehicle intelligence refreshed.",
+      error: (reason) => (reason instanceof Error ? reason.message : "Refresh failed."),
+    });
+  };
+
+  const clearFilters = () => {
+    setQuery("");
+    setStatusFilter("all");
+    setSort("latest");
+    searchRef.current?.focus();
+  };
 
   return (
     <main className="site-shell">
@@ -122,12 +180,40 @@ export default function Dashboard() {
           <a href="#system">System</a>
         </nav>
         <div className="topbar-actions">
-          <span className="live-pill"><i /> LIVE FEED</span>
-          <span className="sync-button passive"><RefreshIcon size={17} /> Auto scan</span>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span className="live-pill" tabIndex={0}><i /> LIVE FEED</span>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content className="torque-tooltip" sideOffset={8}>
+                Source data refreshes automatically and again when you return to this tab.
+                <Tooltip.Arrow className="torque-tooltip-arrow" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button className="sync-button" type="button" onClick={refreshAll} disabled={isFetching}>
+                <RefreshCw size={17} className={isFetching ? "spin" : ""} /> {isFetching ? "Syncing" : "Refresh"}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content className="torque-tooltip" sideOffset={8}>
+                Refresh listings, source status and intelligence metrics now.
+                <Tooltip.Arrow className="torque-tooltip-arrow" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
         </div>
       </header>
 
-      <section className="hero-grid">
+      <motion.section
+        className="hero-grid"
+        initial="hidden"
+        animate="visible"
+        variants={reveal}
+        transition={{ duration: reduceMotion ? 0 : 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="hero-copy">
           <div className="section-kicker"><span>01</span> MARKET SIGNAL ENGINE</div>
           <h1>See the listing.<br/><em>Understand the machine.</em></h1>
@@ -138,13 +224,18 @@ export default function Dashboard() {
           <div className="hero-actions">
             <a href="#inventory" className="primary-action">Explore inventory <span>↘</span></a>
             <div className="source-readout">
-              <SignalIcon size={18} />
+              <Signal size={18} />
               <span><small>MONITORING</small><strong>{status?.target ? `@${status.target.replace(/^@/, "")}` : "Awaiting target"}</strong></span>
             </div>
           </div>
         </div>
 
-        <div className="hero-instrument" aria-hidden="true">
+        <motion.div
+          className="hero-instrument"
+          aria-hidden="true"
+          animate={reduceMotion ? undefined : { y: [0, -5, 0] }}
+          transition={{ repeat: Infinity, duration: 5.5, ease: "easeInOut" }}
+        >
           <div className="instrument-grid" />
           <div className="instrument-orbit orbit-one" />
           <div className="instrument-orbit orbit-two" />
@@ -158,27 +249,34 @@ export default function Dashboard() {
           <div className="instrument-label label-a">AI / VISION</div>
           <div className="instrument-label label-b">EAT {clock}</div>
           <div className="instrument-label label-c">SYNC {currentPoll}</div>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
-      <section className="metric-strip" id="intelligence">
+      <motion.section
+        className="metric-strip"
+        id="intelligence"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true, amount: 0.35 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5 }}
+      >
         <article>
-          <div className="metric-icon"><DatabaseIcon size={19} /></div>
+          <div className="metric-icon"><Database size={19} /></div>
           <div><small>INDEXED INVENTORY</small><strong>{overview.listings_total.toString().padStart(2, "0")}</strong><span>{overview.available_total} currently available</span></div>
         </article>
         <article>
-          <div className="metric-icon"><SparkIcon size={19} /></div>
+          <div className="metric-icon"><Sparkles size={19} /></div>
           <div><small>AI ENRICHMENT</small><strong>{Math.round(overview.enrichment_rate)}%</strong><span>{overview.enriched_posts} posts interpreted</span></div>
         </article>
         <article>
-          <div className="metric-icon"><ClockIcon size={19} /></div>
-          <div><small>LATEST SIGNAL</small><strong className="metric-time">{formatRelativeTime(overview.latest_post_at)}</strong><span>Auto-refresh every 60 seconds</span></div>
+          <div className="metric-icon"><Clock3 size={19} /></div>
+          <div><small>LATEST SIGNAL</small><strong className="metric-time">{formatRelativeTime(overview.latest_post_at)}</strong><span>Live query cache + background refresh</span></div>
         </article>
         <article>
-          <div className="metric-icon"><ShieldIcon size={19} /></div>
+          <div className="metric-icon"><ShieldCheck size={19} /></div>
           <div><small>EVIDENCE MODEL</small><strong className="metric-time">PROVENANCE</strong><span>Claims separated from inference</span></div>
         </article>
-      </section>
+      </motion.section>
 
       <section className="inventory-section" id="inventory">
         <div className="section-heading">
@@ -189,12 +287,23 @@ export default function Dashboard() {
           <div className="inventory-count"><strong>{filtered.length}</strong><span>matching records</span></div>
         </div>
 
-        <div className="filter-rail">
-          <label className="search-field">
-            <SearchIcon size={18} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search make, model, location…" />
+        <div className="filter-rail enhanced-filter-rail">
+          <label className="search-field enhanced-search">
+            <Search size={18} />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search make, model, location…"
+              aria-label="Search vehicle inventory"
+            />
+            {query ? (
+              <button type="button" className="input-clear" onClick={() => setQuery("")} aria-label="Clear search"><X size={15} /></button>
+            ) : (
+              <kbd>/</kbd>
+            )}
           </label>
-          <label className="select-field"><FilterIcon size={17} />
+          <label className="select-field"><Filter size={17} />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
               <option value="all">All status</option>
               <option value="available">Available</option>
@@ -211,6 +320,25 @@ export default function Dashboard() {
               <option value="year">Newest year</option>
             </select>
           </label>
+          <AnimatePresence>
+            {filtersActive && (
+              <motion.button
+                type="button"
+                className="clear-filters"
+                onClick={clearFilters}
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+              >
+                <X size={15} /> Reset
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="inventory-meta-row">
+          <span><Activity size={15} /> {isFetching ? "Refreshing intelligence…" : "Intelligence current"}</span>
+          <span>{filtersActive ? `${filtered.length} of ${listings.length} records visible` : `${listings.length} records loaded`}</span>
         </div>
 
         {loading ? (
@@ -222,19 +350,22 @@ export default function Dashboard() {
             <div className="state-radar"><span /></div>
             <small>CONNECTION STATE</small>
             <h3>Backend signal unavailable.</h3>
-            <p>{error}</p>
-            <button className="primary-action" onClick={() => void load()}>Retry connection</button>
+            <p>{error instanceof Error ? error.message : "Unable to reach the backend."}</p>
+            <button className="primary-action" onClick={refreshAll}>Retry connection</button>
           </div>
         ) : filtered.length ? (
-          <div className="vehicle-grid">
-            {filtered.map((listing, index) => <VehicleCard key={listing.id} listing={listing} index={index} />)}
-          </div>
+          <motion.div className="vehicle-grid" layout>
+            <AnimatePresence mode="popLayout">
+              {filtered.map((listing, index) => <VehicleCard key={listing.id} listing={listing} index={index} />)}
+            </AnimatePresence>
+          </motion.div>
         ) : (
           <div className="state-panel">
             <div className="state-radar"><span /></div>
             <small>SIGNAL QUEUE</small>
             <h3>{listings.length ? "No records match this filter." : "Awaiting the first vehicle signal."}</h3>
             <p>{listings.length ? "Change the search or status filters to widen the view." : "Once the configured X account publishes a candidate listing, The Torque will classify, enrich and surface it here."}</p>
+            {filtersActive && <button className="secondary-action" onClick={clearFilters}>Reset filters</button>}
           </div>
         )}
       </section>
@@ -259,7 +390,7 @@ export default function Dashboard() {
             <div className="telemetry-row"><span>Night cycle</span><strong>{status ? `${status.nighttime_poll_seconds / 60} min` : "—"}</strong></div>
             <div className="telemetry-row"><span>Timezone</span><strong>{status?.timezone || "Africa/Nairobi"}</strong></div>
             <div className="telemetry-row"><span>Posts captured</span><strong>{overview.posts_total}</strong></div>
-            <div className="telemetry-footer"><GaugeIcon size={18} /><span>Last source cursor</span><code>{status?.last_seen_post_id || "waiting"}</code></div>
+            <div className="telemetry-footer"><Gauge size={18} /><span>Last source cursor</span><code>{status?.last_seen_post_id || "waiting"}</code></div>
           </div>
         </div>
       </section>
