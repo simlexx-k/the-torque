@@ -3,7 +3,8 @@ import SignalFeedPage from "@/components/SignalFeedPage";
 
 export const metadata: Metadata = {
   title: "Signals",
-  description: "Raw captured X seller posts and their enrichment state.",
+  description: "Raw captured seller posts and enrichment state for The Torque operators.",
+  robots: { index: false, follow: false },
 };
 
 export default function SignalsPage() {

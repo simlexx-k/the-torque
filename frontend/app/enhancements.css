@@ -112,11 +112,14 @@
 .embla-slide .detail-main-image { border-radius: 0; }
 .gallery-controls {
   position: absolute;
-  right: 17px;
-  top: 17px;
+  inset: 50% 14px auto;
   z-index: 4;
   display: flex;
-  gap: 7px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 .gallery-controls button,
 .copy-link-button {
@@ -133,6 +136,7 @@
   cursor: pointer;
   transition: border-color .2s, color .2s, background .2s, transform .2s;
 }
+.gallery-controls button { pointer-events: auto; }
 .gallery-controls button:hover,
 .copy-link-button:hover { border-color: var(--acid); color: var(--acid); background: rgba(12,13,15,.82); transform: translateY(-1px); }
 .enhanced-thumbnails { scrollbar-width: thin; scrollbar-color: #555b62 transparent; }
@@ -154,7 +158,7 @@
   .enhanced-filter-rail { grid-template-columns: 1fr; }
   .enhanced-search { grid-column: auto; }
   .inventory-meta-row { align-items: flex-start; flex-direction: column; }
-  .gallery-controls { right: 10px; top: 10px; }
+  .gallery-controls { inset: 50% 6px auto; }
   .gallery-controls button { width: 38px; height: 38px; }
   .enhanced-thumbnails { height: 72px; }
   .enhanced-thumbnails button { width: 96px; }

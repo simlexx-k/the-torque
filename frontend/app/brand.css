@@ -1,0 +1,24 @@
+/* Production brand assets */
+.app-brand-mark {
+  background: url("/icon.jpg") center / contain no-repeat !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+.app-brand-mark > span {
+  display: none !important;
+}
+
+.app-brand-mark::before,
+.app-brand-mark::after {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-brand:hover .app-brand-mark,
+  .torque-footer-brand a:hover .app-brand-mark {
+    transform: translateY(-1px) scale(1.025);
+    transition: transform .22s ease;
+  }
+}
