@@ -11,7 +11,17 @@ class Settings(BaseSettings):
 
     app_name: str = "The Torque"
     environment: str = "development"
+
+    # Local development can continue to use DATABASE_URL (SQLite by default).
+    # Production Compose supplies the structured DATABASE_* fields below so
+    # passwords never have to be interpolated into a URI.
     database_url: str = "sqlite:///./the_torque.db"
+    database_host: str = ""
+    database_port: int = Field(default=5432, ge=1, le=65535)
+    database_user: str = "thetorque"
+    database_password: str = ""
+    database_name: str = "thetorque"
+
     admin_api_key: str = ""
 
     # Network hardening. Keep CORS empty when the Vercel server-side proxy is used.
