@@ -6,7 +6,7 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -50,7 +50,54 @@ async def lifespan(app: FastAPI):
         await task
 
 
-app = FastAPI(title="The Torque", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="The Torque", version="0.2.0", lifespan=lifespan)
+
+
+def _serialize_media(media) -> dict:
+    return {
+        "type": media.media_type,
+        "url": media.url,
+        "preview_image_url": media.preview_image_url,
+        "width": media.width,
+        "height": media.height,
+    }
+
+
+def _serialize_listing(row: Listing) -> dict:
+    post = row.post
+    return {
+        "id": row.id,
+        "post_id": row.post_id,
+        "x_url": f"https://x.com/{post.source.username}/status/{post.x_post_id}",
+        "make": row.make,
+        "model": row.model,
+        "generation": row.generation,
+        "variant": row.variant,
+        "year": row.year,
+        "body_type": row.body_type,
+        "fuel": row.fuel,
+        "engine_cc": row.engine_cc,
+        "transmission": row.transmission,
+        "drivetrain": row.drivetrain,
+        "colour": row.colour,
+        "price": row.price,
+        "currency": row.currency,
+        "mileage_km": row.mileage_km,
+        "location": row.location,
+        "status": row.status,
+        "evidence": row.evidence,
+        "features": row.features,
+        "observations": row.observations,
+        "created_at": row.created_at,
+        "post": {
+            "x_post_id": post.x_post_id,
+            "text": post.text,
+            "created_at": post.x_created_at,
+            "classification": post.classification,
+            "ai_status": post.ai_status,
+            "media": [_serialize_media(media) for media in post.media],
+        },
+    }
 
 
 @app.get("/")
@@ -83,6 +130,28 @@ def status(db: Session = Depends(get_db), settings: Settings = Depends(get_setti
     }
 
 
+@app.get("/api/overview")
+def overview(db: Session = Depends(get_db)):
+    listings_total = db.scalar(select(func.count(Listing.id))) or 0
+    posts_total = db.scalar(select(func.count(Post.id))) or 0
+    enriched_posts = db.scalar(select(func.count(Post.id)).where(Post.ai_status == "complete")) or 0
+    available_total = db.scalar(select(func.count(Listing.id)).where(func.lower(Listing.status) == "available")) or 0
+    sold_total = db.scalar(select(func.count(Listing.id)).where(func.lower(Listing.status) == "sold")) or 0
+    latest_post_at = db.scalar(select(func.max(Post.x_created_at)))
+    latest_listing_at = db.scalar(select(func.max(Listing.created_at)))
+    enrichment_rate = (enriched_posts / posts_total * 100) if posts_total else 0.0
+    return {
+        "listings_total": listings_total,
+        "posts_total": posts_total,
+        "available_total": available_total,
+        "sold_total": sold_total,
+        "enriched_posts": enriched_posts,
+        "enrichment_rate": round(enrichment_rate, 1),
+        "latest_post_at": latest_post_at,
+        "latest_listing_at": latest_listing_at,
+    }
+
+
 @app.post("/api/ingest/run", dependencies=[Depends(require_admin)])
 def run_ingestion(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     try:
@@ -104,10 +173,7 @@ def posts(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(ge
             "classification": row.classification,
             "ai_status": row.ai_status,
             "x_url": f"https://x.com/{row.source.username}/status/{row.x_post_id}",
-            "media": [
-                {"type": media.media_type, "url": media.url, "preview_image_url": media.preview_image_url}
-                for media in row.media
-            ],
+            "media": [_serialize_media(media) for media in row.media],
         }
         for row in rows
     ]
@@ -116,24 +182,12 @@ def posts(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(ge
 @app.get("/api/listings")
 def listings(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
     rows = db.scalars(select(Listing).order_by(desc(Listing.created_at), desc(Listing.id)).limit(limit)).all()
-    return [
-        {
-            "id": row.id,
-            "post_id": row.post_id,
-            "x_url": f"https://x.com/{row.post.source.username}/status/{row.post.x_post_id}",
-            "make": row.make,
-            "model": row.model,
-            "generation": row.generation,
-            "variant": row.variant,
-            "year": row.year,
-            "price": row.price,
-            "currency": row.currency,
-            "mileage_km": row.mileage_km,
-            "location": row.location,
-            "status": row.status,
-            "evidence": row.evidence,
-            "features": row.features,
-            "observations": row.observations,
-        }
-        for row in rows
-    ]
+    return [_serialize_listing(row) for row in rows]
+
+
+@app.get("/api/listings/{listing_id}")
+def listing_detail(listing_id: int, db: Session = Depends(get_db)):
+    row = db.get(Listing, listing_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    return _serialize_listing(row)

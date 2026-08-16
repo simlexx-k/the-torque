@@ -26,5 +26,15 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      TORQUE_API_INTERNAL_URL: http://app:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+
 volumes:
   torque_postgres:
