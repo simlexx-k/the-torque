@@ -22,9 +22,9 @@ export default function SystemPage() {
     <main className="product-page system-page">
       <section className="page-hero compact-page-hero">
         <div>
-          <div className="page-kicker"><span>06</span> SYSTEM OPERATIONS</div>
+          <div className="page-kicker"><span>07</span> SYSTEM OPERATIONS</div>
           <h1>Know what is live.<br/><em>Know what is waiting.</em></h1>
-          <p>A read-only operations surface for source configuration, polling cadence and intelligence coverage.</p>
+          <p>A read-only operations surface for source configuration, polling cadence, enrichment provider and intelligence coverage.</p>
         </div>
         <div className={`system-health-badge ${connected ? "healthy" : "degraded"}`}>
           {connected ? <CheckCircle2 size={20}/> : <XCircle size={20}/>}<span><small>DATA PLANE</small><strong>{connected ? "CONNECTED" : "DEGRADED"}</strong></span>
@@ -41,20 +41,22 @@ export default function SystemPage() {
 
         <article className="ops-card"><div className="ops-card-head"><Clock3 size={18}/><span>POLL CADENCE</span></div><strong>{daytimeMinutes ? `${daytimeMinutes} min` : "—"}</strong><p>Daytime polling interval.</p><div className="ops-footer-value">Night: {nighttimeMinutes ? `${nighttimeMinutes} min` : "—"}</div></article>
         <article className="ops-card"><div className="ops-card-head"><Database size={18}/><span>INDEX</span></div><strong>{overview?.listings_total ?? "—"}</strong><p>Normalized vehicle listings currently available to the frontend.</p><div className="ops-footer-value">{overview?.posts_total ?? 0} source posts</div></article>
-        <article className="ops-card"><div className="ops-card-head"><Bot size={18}/><span>AI COVERAGE</span></div><strong>{overview ? `${Math.round(overview.enrichment_rate)}%` : "—"}</strong><p>Share of indexed posts completed by the enrichment pipeline.</p><div className="ops-footer-value">{overview?.enriched_posts ?? 0} enriched</div></article>
+        <article className="ops-card"><div className="ops-card-head"><Bot size={18}/><span>AI COVERAGE</span></div><strong>{overview ? `${Math.round(overview.enrichment_rate)}%` : "—"}</strong><p>{status?.ai_provider ? `${status.ai_provider} · ${status.ai_model || "model n/a"}` : "Provider not reported"}</p><div className="ops-footer-value">{overview?.enriched_posts ?? 0} enriched · {status?.ai_failed_posts ?? 0} errors</div></article>
       </section>
 
       <section className="ops-status-panel">
         <div className="ops-status-head"><div><ServerCog size={18}/><span>Runtime signals</span></div><button type="button" onClick={refresh} disabled={statusQuery.isFetching || overviewQuery.isFetching}><RefreshCw size={15} className={statusQuery.isFetching || overviewQuery.isFetching ? "spin" : ""}/> Refresh</button></div>
         <div className="runtime-list">
           <div><span><Activity size={16}/> API proxy</span><strong className={connected ? "ok" : "bad"}>{connected ? "RESPONDING" : "UNAVAILABLE"}</strong></div>
+          <div><span><Bot size={16}/> Enrichment provider</span><strong className={status?.ai_configured ? "ok" : "bad"}>{status?.ai_configured ? `${status.ai_provider?.toUpperCase()} READY` : "NOT CONFIGURED"}</strong></div>
+          <div><span><RefreshCw size={16}/> Retry queue</span><strong>{status ? `${status.ai_failed_posts ?? 0} failed · ${status.ai_waiting_posts ?? 0} waiting` : "—"}</strong></div>
           <div><span><ShieldCheck size={16}/> Evidence mode</span><strong className="ok">PROVENANCE-AWARE</strong></div>
           <div><span><Clock3 size={16}/> Timezone</span><strong>{status?.timezone || "Africa/Nairobi"}</strong></div>
           <div><span><Database size={16}/> Latest indexed signal</span><strong>{formatRelativeTime(overview?.latest_post_at)}</strong></div>
         </div>
       </section>
 
-      <section className="system-note"><small>SECURITY BOUNDARY</small><p>This page deliberately exposes no secrets, admin key, ingestion trigger, tunnel token, database credentials or OpenAI/X credentials. It only reads the safe status endpoints already available to the frontend.</p></section>
+      <section className="system-note"><small>SECURITY BOUNDARY</small><p>This page deliberately exposes no API keys, admin key, ingestion trigger, tunnel token or database credentials. It only reads safe operational status from the backend.</p></section>
     </main>
   );
 }
