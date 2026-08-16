@@ -7,13 +7,14 @@ import "./detail.css";
 import "./enhancements.css";
 import "./product.css";
 import "./signals.css";
+import "./home.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "The Torque — Vehicle Intelligence",
+    default: "The Torque — Vehicle Listings",
     template: "%s — The Torque",
   },
-  description: "AI-assisted vehicle listing intelligence from live social-market signals.",
+  description: "Browse current vehicle listings with seller photos, structured specifications and source-linked details.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
