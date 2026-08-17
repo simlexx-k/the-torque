@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
+from app import db as db_module
 from app.db import Base
 from app.listing_intelligence import build_listing_fingerprint, register_listing_intelligence, summarise_history
 from app.models import Listing, ListingSnapshot
@@ -81,3 +82,23 @@ def test_register_preserves_source_rows_and_builds_history():
         assert summary["latest_price"] == 1180000
         assert summary["price_change"] == -70000
         assert summary["days_listed"] == 8
+
+
+def test_intelligence_columns_are_added_without_renumbering(tmp_path, monkeypatch):
+    migration_engine = create_engine(f"sqlite:///{tmp_path / 'legacy-intelligence.db'}")
+    with migration_engine.begin() as connection:
+        connection.exec_driver_sql("CREATE TABLE listings (id INTEGER PRIMARY KEY, created_at TIMESTAMP)")
+        connection.exec_driver_sql("INSERT INTO listings (id, created_at) VALUES (7, '2026-08-01 10:00:00'), (70, '2026-08-02 10:00:00')")
+
+    monkeypatch.setattr(db_module, "engine", migration_engine)
+    db_module._ensure_listing_intelligence_schema()
+
+    columns = {column["name"] for column in inspect(migration_engine).get_columns("listings")}
+    assert {"fingerprint", "canonical_listing_id", "first_seen_at", "last_seen_at"}.issubset(columns)
+
+    with migration_engine.connect() as connection:
+        rows = connection.execute(text("SELECT id, first_seen_at, last_seen_at FROM listings ORDER BY id")).all()
+
+    assert [row.id for row in rows] == [7, 70]
+    assert all(row.first_seen_at is not None for row in rows)
+    assert all(row.last_seen_at is not None for row in rows)
