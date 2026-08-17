@@ -14,6 +14,7 @@ import "./gallery.css";
 import "./brand.css";
 import "./cards.css";
 import "./theme.css";
+import "./theme-coverage.css";
 
 const siteUrl = getSiteUrl();
 
