@@ -14,6 +14,36 @@ export type FeatureEvidence = {
   [key: string]: unknown;
 };
 
+export type ListingMarketMeta = {
+  is_repost?: boolean;
+  canonical_public_id?: string | null;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+};
+
+export type ListingHistoryObservation = {
+  observed_at: string;
+  price?: number | null;
+  currency?: string | null;
+  mileage_km?: number | null;
+  status: string;
+};
+
+export type ListingHistory = {
+  listing_public_id: string;
+  canonical_public_id: string;
+  is_repost: boolean;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  days_listed: number;
+  repost_count: number;
+  first_price?: number | null;
+  latest_price?: number | null;
+  price_change?: number | null;
+  price_change_percent?: number | null;
+  observations: ListingHistoryObservation[];
+};
+
 export type Listing = {
   // Numeric ids remain in the API for backwards compatibility, but the public
   // web app routes exclusively through public_id when the backend provides it.
@@ -42,6 +72,7 @@ export type Listing = {
   features: FeatureEvidence[];
   observations: string[];
   created_at?: string | null;
+  market?: ListingMarketMeta;
   post?: {
     x_post_id: string;
     text: string;
