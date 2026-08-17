@@ -1,13 +1,27 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight, Bookmark, Gauge, GitCompareArrows, Images, MapPin, Settings2 } from "lucide-react";
+import { Popover, Tooltip } from "radix-ui";
+import {
+  ArrowUpRight,
+  Bookmark,
+  Gauge,
+  GitCompareArrows,
+  Images,
+  MapPin,
+  MoreHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { Listing } from "@/lib/types";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
 import { listingCollectionKey, listingHref, listingShortReference } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
+
+function clean(value?: string | null) {
+  return value?.trim() || null;
+}
 
 export default function VehicleCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
   const media = listing.post?.media?.[0];
@@ -19,6 +33,23 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
   const { isSaved, isCompared, toggleSaved, toggleCompare } = useVehicleCollections();
   const saved = isSaved(collectionKey, listing.id);
   const compared = isCompared(collectionKey, listing.id);
+
+  const smartTags = [
+    clean(listing.transmission),
+    clean(listing.fuel),
+    listing.engine_cc ? `${(listing.engine_cc / 1000).toFixed(1)}L` : null,
+  ].filter(Boolean).slice(0, 2) as string[];
+
+  const detailRows = [
+    ["Year", listing.year ? String(listing.year) : null],
+    ["Engine", listing.engine_cc ? `${formatNumber(listing.engine_cc)} cc` : null],
+    ["Transmission", clean(listing.transmission)],
+    ["Fuel", clean(listing.fuel)],
+    ["Drivetrain", clean(listing.drivetrain)],
+    ["Colour", clean(listing.colour)],
+    ["Body style", clean(listing.body_type)],
+    ["Generation", clean(listing.generation)],
+  ].filter(([, value]) => Boolean(value)) as [string, string][];
 
   const onSave = () => {
     const selected = toggleSaved(collectionKey, listing.id);
@@ -36,71 +67,109 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
 
   return (
     <motion.article
-      className="vehicle-card enhanced-vehicle-card"
+      className="vehicle-card enhanced-vehicle-card smart-vehicle-card"
       layout
-      initial={{ opacity: 0, y: reduceMotion ? 0 : 16, scale: reduceMotion ? 1 : 0.985 }}
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 10, scale: reduceMotion ? 1 : 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: reduceMotion ? 0 : 10, scale: reduceMotion ? 1 : 0.98 }}
-      transition={{ duration: reduceMotion ? 0 : 0.34, delay: reduceMotion ? 0 : Math.min(index * 0.025, 0.2), ease: [0.22, 1, 0.36, 1] }}
-      whileHover={reduceMotion ? undefined : { y: -5 }}
+      exit={{ opacity: 0, y: reduceMotion ? 0 : 8, scale: reduceMotion ? 1 : 0.99 }}
+      transition={{ duration: reduceMotion ? 0 : 0.28, delay: reduceMotion ? 0 : Math.min(index * 0.018, 0.15), ease: [0.22, 1, 0.36, 1] }}
+      whileHover={reduceMotion ? undefined : { y: -3 }}
     >
-      <Link href={href} className="vehicle-image-wrap" aria-label={vehicleTitle(listing)}>
-        {image ? (
-          <motion.img
-            className="vehicle-image"
-            src={image}
-            alt={vehicleTitle(listing)}
-            loading="lazy"
-            whileHover={reduceMotion ? undefined : { scale: 1.035 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          />
-        ) : (
-          <div className="vehicle-placeholder" aria-hidden="true">
-            <span>THE TORQUE</span>
-            <div className="placeholder-orbit" />
-          </div>
-        )}
-        <div className="image-vignette" />
+      <div className="smart-card-media">
+        <Link href={href} className="vehicle-image-wrap" aria-label={`Open ${vehicleTitle(listing)}`}>
+          {image ? (
+            <Image
+              className="vehicle-image"
+              src={image}
+              alt={vehicleTitle(listing)}
+              fill
+              sizes="(max-width: 620px) 42vw, (max-width: 900px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              quality={72}
+            />
+          ) : (
+            <div className="vehicle-placeholder" aria-hidden="true">
+              <span>THE TORQUE</span>
+              <div className="placeholder-orbit" />
+            </div>
+          )}
+          <div className="image-vignette" />
+        </Link>
+
         <span className={`status-chip status-${status}`}>{status.replaceAll("_", " ")}</span>
+
         {listing.post?.media && listing.post.media.length > 1 && (
-          <span className="media-count"><Images size={13} /> {listing.post.media.length} photos</span>
+          <span className="media-count"><Images size={12} /> {listing.post.media.length}</span>
         )}
-      </Link>
+
+        <div className="smart-card-actions" aria-label="Listing actions">
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button type="button" className={saved ? "active" : ""} onClick={onSave} aria-pressed={saved} aria-label={saved ? "Remove from watchlist" : "Save to watchlist"}>
+                <Bookmark size={15} fill={saved ? "currentColor" : "none"} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal><Tooltip.Content className="torque-tooltip" side="left" sideOffset={8}>{saved ? "Remove from watchlist" : "Save to watchlist"}<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
+          </Tooltip.Root>
+
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared} aria-label={compared ? "Remove from comparison" : "Add to comparison"}>
+                <GitCompareArrows size={15} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal><Tooltip.Content className="torque-tooltip" side="left" sideOffset={8}>{compared ? "Remove from comparison" : "Add to comparison"}<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
+          </Tooltip.Root>
+        </div>
+      </div>
 
       <div className="vehicle-card-body">
-        <div className="vehicle-eyebrow">
+        <div className="vehicle-eyebrow smart-card-eyebrow">
           <span>{listing.body_type || listing.generation || "Vehicle"}</span>
           <span className="mono">REF {listingShortReference(listing)}</span>
         </div>
-        <Link href={href} className="vehicle-name">{vehicleTitle(listing)}</Link>
+
+        <div className="smart-card-title-row">
+          <Link href={href} className="vehicle-name">{vehicleTitle(listing)}</Link>
+          <Link href={href} className="smart-card-open" aria-label={`View ${vehicleTitle(listing)}`}><ArrowUpRight size={16} /></Link>
+        </div>
+
         <div className="vehicle-price">{formatPrice(listing.price, listing.currency)}</div>
 
-        <div className="vehicle-facts">
-          <span><Gauge size={16} />{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Mileage not stated"}</span>
-          <span><MapPin size={16} />{listing.location || "Location not stated"}</span>
+        <div className="smart-card-facts">
+          <span title="Mileage"><Gauge size={14} />{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Mileage —"}</span>
+          <span title="Location"><MapPin size={14} />{listing.location || "Location —"}</span>
         </div>
 
-        <div className="vehicle-tags">
-          {[listing.fuel, listing.transmission, listing.drivetrain, listing.engine_cc ? `${(listing.engine_cc / 1000).toFixed(1)}L` : null]
-            .filter(Boolean)
-            .slice(0, 4)
-            .map((tag) => <span key={String(tag)}><Settings2 size={12} />{tag}</span>)}
-        </div>
-
-        <div className="vehicle-card-footer">
-          <div className="vehicle-collection-actions">
-            <button type="button" className={saved ? "active" : ""} onClick={onSave} aria-pressed={saved} title="Save to watchlist">
-              <Bookmark size={15} fill={saved ? "currentColor" : "none"} />
-              <span>{saved ? "Saved" : "Save"}</span>
-            </button>
-            <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared} title="Add to comparison">
-              <GitCompareArrows size={15} />
-              <span>{compared ? "Selected" : "Compare"}</span>
-            </button>
+        <div className="smart-card-lower">
+          <div className="smart-card-tags" aria-label="Key specifications">
+            {smartTags.map((tag) => <span key={tag}>{tag}</span>)}
           </div>
-          <Link className="card-link" href={href}>
-            View listing <ArrowUpRight size={17} />
-          </Link>
+
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <button type="button" className="smart-spec-trigger" aria-label="Show more vehicle specifications">
+                <MoreHorizontal size={16} />
+                <span>{detailRows.length ? "Specs" : "Details"}</span>
+              </button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content className="smart-spec-popover" side="top" align="end" sideOffset={8} collisionPadding={12}>
+                <div className="smart-spec-heading">
+                  <div><small>QUICK SPECS</small><strong>{vehicleTitle(listing)}</strong></div>
+                  <span>REF {listingShortReference(listing)}</span>
+                </div>
+                {detailRows.length ? (
+                  <dl className="smart-spec-grid">
+                    {detailRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+                  </dl>
+                ) : (
+                  <p className="smart-spec-empty">No additional specifications were stated for this listing.</p>
+                )}
+                <Link href={href} className="smart-spec-link">Open full listing <ArrowUpRight size={14} /></Link>
+                <Popover.Arrow className="smart-spec-arrow" />
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
         </div>
       </div>
     </motion.article>
