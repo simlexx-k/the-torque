@@ -22,24 +22,25 @@ def _normalise(value: object | None) -> str:
 def _mileage_bucket(value: int | None) -> str:
     if value is None or value < 0:
         return ""
-    # Mileage is useful for distinguishing otherwise similar cars, but exact
-    # odometer values can change between reposts. A 5,000 km bucket keeps the
-    # signal stable while remaining conservative.
+    # Exact odometer values can change between reposts. A 5,000 km bucket is
+    # tolerant of small changes while still providing a strong identity anchor.
     return str(int(round(value / 5000)) * 5000)
 
 
 def build_listing_fingerprint(listing: Listing) -> str | None:
     """Return a conservative fingerprint for likely repost detection.
 
-    The fingerprint deliberately ignores price and location because those can
-    change between seller reposts. It requires make/model/year plus at least two
-    further identity signals before it will classify two listings as likely the
-    same vehicle. Low-information listings therefore remain independent.
+    Price and location are excluded because sellers commonly change them. To
+    avoid clustering two ordinary cars that merely share common specifications,
+    automatic matching requires make/model/year, a mileage observation and at
+    least two additional stable identity signals. Low-information rows remain
+    independent rather than being guessed into a cluster.
     """
     make = _normalise(listing.make)
     model = _normalise(listing.model)
     year = _normalise(listing.year)
-    if not make or not model or not year:
+    mileage = _mileage_bucket(listing.mileage_km)
+    if not make or not model or not year or not mileage:
         return None
 
     optional = [
@@ -49,12 +50,11 @@ def build_listing_fingerprint(listing: Listing) -> str | None:
         _normalise(listing.transmission),
         _normalise(listing.drivetrain),
         _normalise(listing.colour),
-        _mileage_bucket(listing.mileage_km),
     ]
     if sum(bool(value) for value in optional) < 2:
         return None
 
-    raw = "|".join([FINGERPRINT_VERSION, make, model, year, *optional])
+    raw = "|".join([FINGERPRINT_VERSION, make, model, year, mileage, *optional])
     return sha256(raw.encode("utf-8")).hexdigest()
 
 
