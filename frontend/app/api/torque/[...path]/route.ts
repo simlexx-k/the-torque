@@ -41,15 +41,21 @@ function legacyPublicIdsEnabled() {
   return process.env.TORQUE_ALLOW_LEGACY_PUBLIC_IDS !== "false";
 }
 
+function validListingReference(reference: string) {
+  if (PUBLIC_LISTING_RE.test(reference)) return true;
+  return LEGACY_LISTING_RE.test(reference) && legacyPublicIdsEnabled();
+}
+
 function routeAllowed(path: string[]) {
-  if (!path.length || path.length > 2 || path.some((segment) => !SAFE_SEGMENT_RE.test(segment))) {
+  if (!path.length || path.length > 3 || path.some((segment) => !SAFE_SEGMENT_RE.test(segment))) {
     return false;
   }
 
   if (path[0] === "listings") {
     if (path.length === 1) return true;
-    if (PUBLIC_LISTING_RE.test(path[1])) return true;
-    return LEGACY_LISTING_RE.test(path[1]) && legacyPublicIdsEnabled();
+    if (!validListingReference(path[1])) return false;
+    if (path.length === 2) return true;
+    return path.length === 3 && path[2] === "history";
   }
 
   if (OPERATOR_ROUTES.has(path[0])) {
@@ -61,7 +67,10 @@ function routeAllowed(path: string[]) {
 
 function queryAllowed(request: NextRequest, path: string[]) {
   const keys = Array.from(request.nextUrl.searchParams.keys());
-  if (path[0] === "listings" || path[0] === "posts") {
+  if (path[0] === "listings" && path.length === 1) {
+    return keys.every((key) => key === "limit");
+  }
+  if (path[0] === "posts") {
     return keys.every((key) => key === "limit");
   }
   return keys.length === 0;

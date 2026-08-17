@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.enrichment import VehicleEnricher, should_enrich
+from app.listing_intelligence import register_listing_intelligence
 from app.models import Listing, Media, Post, Source
 from app.schemas import ListingAnalysis, VehicleCandidate
 from app.x_client import XClient
@@ -170,10 +171,20 @@ class IngestionService:
                     "last_error": None,
                 },
             }
+            created_listings: list[Listing] = []
             for position, candidate in enumerate(analysis.vehicles):
-                post.listings.append(_make_listing(post.id, position, candidate))
+                listing = _make_listing(post.id, position, candidate)
+                post.listings.append(listing)
+                created_listings.append(listing)
+
+            # Flush first so every listing has its stable integer id. The market
+            # intelligence layer then records the observation and links only
+            # conservative likely reposts; it never deletes or merges source rows.
+            session.flush()
+            for listing in created_listings:
+                register_listing_intelligence(session, listing)
             session.commit()
-            return len(analysis.vehicles)
+            return len(created_listings)
         except Exception as exc:
             logger.exception("Failed to persist enrichment for X post %s", post.x_post_id)
             post_id = post.id
