@@ -12,6 +12,7 @@ import "./home.css";
 import "./footer.css";
 import "./gallery.css";
 import "./brand.css";
+import "./cards.css";
 
 const siteUrl = getSiteUrl();
 

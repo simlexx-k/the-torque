@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Tooltip } from "radix-ui";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
@@ -22,19 +23,19 @@ export default function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Tooltip.Provider delayDuration={180} skipDelayDuration={80}>
-        {children}
-        <Toaster
-          position="bottom-right"
-          theme="dark"
-          richColors
-          closeButton
-          toastOptions={{
-            className: "torque-toast",
-          }}
-        />
-      </Tooltip.Provider>
-    </QueryClientProvider>
+    <NuqsAdapter>
+      <QueryClientProvider client={queryClient}>
+        <Tooltip.Provider delayDuration={180} skipDelayDuration={80}>
+          {children}
+          <Toaster
+            position="bottom-right"
+            theme="dark"
+            richColors
+            closeButton
+            toastOptions={{ className: "torque-toast" }}
+          />
+        </Tooltip.Provider>
+      </QueryClientProvider>
+    </NuqsAdapter>
   );
 }
