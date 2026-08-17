@@ -13,6 +13,7 @@ import "./footer.css";
 import "./gallery.css";
 import "./brand.css";
 import "./cards.css";
+import "./theme.css";
 
 const siteUrl = getSiteUrl();
 
@@ -78,16 +79,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "dark light",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0f1114" },
-    { media: "(prefers-color-scheme: light)", color: "#f3f2ed" },
-  ],
+  colorScheme: "light dark",
+  themeColor: "#f3f2ed",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>
