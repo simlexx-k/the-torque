@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import ListingDetail from "@/components/ListingDetail";
-import ListingHistoryPanel from "@/components/ListingHistoryPanel";
 import type { Listing } from "@/lib/types";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
 import { SITE_DESCRIPTION } from "@/lib/site";
@@ -101,10 +100,5 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  return (
-    <>
-      <ListingDetail id={id} />
-      <ListingHistoryPanel id={id} />
-    </>
-  );
+  return <ListingDetail id={id} />;
 }
