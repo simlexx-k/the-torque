@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Bookmark,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -25,6 +26,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import ListingHistoryPanel from "@/components/ListingHistoryPanel";
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { confidenceToPercent, formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
@@ -128,10 +130,18 @@ export default function ListingDetail({ id }: { id: string }) {
     ["Generation", listing.generation],
   ].filter(([, value]) => value !== null && value !== undefined && value !== "");
 
+  const keyFacts = [
+    ["Year", listing.year ? String(listing.year) : "Not stated"],
+    ["Mileage", listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Not stated"],
+    ["Transmission", listing.transmission || "Not stated"],
+    ["Location", listing.location || "Not stated"],
+  ];
+
   const evidenceEntries = Object.entries(listing.evidence || {});
   const collectionKey = listingCollectionKey(listing);
   const saved = isSaved(collectionKey, listing.id);
   const compared = isCompared(collectionKey, listing.id);
+  const status = (listing.status || "available").toLowerCase();
 
   const onSave = () => {
     const selected = toggleSaved(collectionKey, listing.id);
@@ -148,150 +158,170 @@ export default function ListingDetail({ id }: { id: string }) {
   };
 
   return (
-    <main className="detail-shell">
+    <main className="detail-shell detail-shell-v2">
       <motion.section
-        className="detail-hero"
-        initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
+        className="detail-hero detail-v2-hero"
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: reduceMotion ? 0 : 0.42, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="detail-gallery enhanced-gallery">
-          {images.length ? (
-            <div className="embla-gallery">
-              <div className="embla-viewport" ref={emblaRef}>
-                <div className="embla-container">
-                  {images.map((image, index) => (
-                    <div className="embla-slide" key={`${image}-${index}`}>
-                      <div className="detail-main-image">
-                        <img src={image} alt={`${vehicleTitle(listing)} — photo ${index + 1}`} />
-                        <div className="image-vignette" />
-                        <button type="button" className="gallery-expand" onClick={() => setLightboxOpen(true)} aria-label="Open photo gallery full screen">
-                          <Maximize2 size={17}/><span>Full screen</span>
-                        </button>
+        <div className="detail-v2-frame">
+          <div className="detail-gallery detail-v2-gallery enhanced-gallery">
+            {images.length ? (
+              <div className="embla-gallery">
+                <div className="embla-viewport" ref={emblaRef}>
+                  <div className="embla-container">
+                    {images.map((image, index) => (
+                      <div className="embla-slide" key={`${image}-${index}`}>
+                        <div className="detail-main-image">
+                          <img src={image} alt={`${vehicleTitle(listing)} — photo ${index + 1}`} />
+                          <div className="image-vignette" />
+                          <button type="button" className="gallery-expand" onClick={() => setLightboxOpen(true)} aria-label="Open photo gallery full screen">
+                            <Maximize2 size={17}/><span>Full screen</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
+
+                <span className={`status-chip status-${status}`}>{status.replaceAll("_", " ")}</span>
+                <div className="frame-index"><span>PHOTO</span><strong>{String(selectedImage + 1).padStart(2, "0")}</strong><small>/ {String(images.length).padStart(2, "0")}</small></div>
+
+                {images.length > 1 && (
+                  <div className="gallery-controls">
+                    <button type="button" onClick={() => emblaApi?.scrollPrev()} aria-label="Previous vehicle photo"><ChevronLeft size={19} /></button>
+                    <button type="button" onClick={() => emblaApi?.scrollNext()} aria-label="Next vehicle photo"><ChevronRight size={19} /></button>
+                  </div>
+                )}
               </div>
+            ) : (
+              <div className="detail-main-image">
+                <div className="vehicle-placeholder large"><span>THE TORQUE</span><div className="placeholder-orbit" /></div>
+                <span className={`status-chip status-${status}`}>{status.replaceAll("_", " ")}</span>
+              </div>
+            )}
 
-              <span className={`status-chip status-${listing.status.toLowerCase()}`}>{listing.status.replaceAll("_", " ")}</span>
-              <div className="frame-index"><span>PHOTO</span><strong>{String(selectedImage + 1).padStart(2, "0")}</strong><small>/ {String(images.length).padStart(2, "0")}</small></div>
+            {images.length > 1 && (
+              <div className="thumbnail-strip enhanced-thumbnails">
+                {images.map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    className={index === selectedImage ? "active" : ""}
+                    onClick={() => showImage(index)}
+                    aria-label={`Show vehicle photo ${index + 1}`}
+                    aria-current={index === selectedImage ? "true" : undefined}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-              {images.length > 1 && (
-                <div className="gallery-controls">
-                  <button type="button" onClick={() => emblaApi?.scrollPrev()} aria-label="Previous vehicle photo"><ChevronLeft size={19} /></button>
-                  <button type="button" onClick={() => emblaApi?.scrollNext()} aria-label="Next vehicle photo"><ChevronRight size={19} /></button>
+          <aside className="detail-summary detail-v2-summary">
+            <Link href="/inventory" className="detail-back-link"><ArrowLeft size={15}/> All listings</Link>
+
+            <div className="detail-v2-meta">
+              <span className={`detail-v2-status status-${status}`}>{status.replaceAll("_", " ")}</span>
+              <span>REF {listingShortReference(listing)}</span>
+            </div>
+
+            <h1>{vehicleTitle(listing)}</h1>
+            <p className="detail-price">{formatPrice(listing.price, listing.currency)}</p>
+
+            <div className="detail-v2-facts" aria-label="Key vehicle details">
+              {keyFacts.map(([label, value]) => (
+                <div key={label}>
+                  <small>{label}</small>
+                  <strong>{value}</strong>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="detail-main-image">
-              <div className="vehicle-placeholder large"><span>THE TORQUE</span><div className="placeholder-orbit" /></div>
-              <span className={`status-chip status-${listing.status.toLowerCase()}`}>{listing.status.replaceAll("_", " ")}</span>
-            </div>
-          )}
-
-          {images.length > 1 && (
-            <div className="thumbnail-strip enhanced-thumbnails">
-              {images.map((image, index) => (
-                <button
-                  key={`${image}-${index}`}
-                  className={index === selectedImage ? "active" : ""}
-                  onClick={() => showImage(index)}
-                  aria-label={`Show vehicle photo ${index + 1}`}
-                  aria-current={index === selectedImage ? "true" : undefined}
-                >
-                  <img src={image} alt="" />
-                </button>
               ))}
             </div>
-          )}
-        </div>
 
-        <div className="detail-summary">
-          <Link href="/inventory" className="detail-back-link"><ArrowLeft size={15}/> Back to listings</Link>
-          <div className="section-kicker"><span>LISTING</span> REF {listingShortReference(listing)}</div>
-          <h1>{vehicleTitle(listing)}</h1>
-          <p className="detail-price">{formatPrice(listing.price, listing.currency)}</p>
-          <div className="detail-facts">
-            <span><Gauge size={18}/><small>MILEAGE</small><strong>{listing.mileage_km ? `${formatNumber(listing.mileage_km)} km` : "Not stated"}</strong></span>
-            <span><MapPin size={18}/><small>LOCATION</small><strong>{listing.location || "Not stated"}</strong></span>
-          </div>
+            <div className="detail-source-actions detail-v2-source-actions">
+              <a className="source-button detail-v2-primary" href={listing.x_url} target="_blank" rel="noreferrer">View original seller post <ExternalLink size={17}/></a>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button type="button" className="copy-link-button" onClick={copyListingLink} aria-label="Copy listing link"><Copy size={17}/></button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content className="torque-tooltip" sideOffset={8}>Copy listing link<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </div>
 
-          <div className="detail-description">
-            <small>SELLER POST</small>
-            <p>{listing.post?.text || "No seller description was stored for this listing."}</p>
-          </div>
+            <div className="detail-collection-actions detail-v2-actions">
+              <button type="button" className={saved ? "active" : ""} onClick={onSave} aria-pressed={saved}><Bookmark size={16} fill={saved ? "currentColor" : "none"}/>{saved ? "Saved" : "Save"}</button>
+              <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared}><GitCompareArrows size={16}/>{compared ? "Comparing" : "Compare"}</button>
+              <ListingHistoryPanel id={id} inline />
+            </div>
 
-          <div className="detail-collection-actions">
-            <button type="button" className={saved ? "active" : ""} onClick={onSave} aria-pressed={saved}><Bookmark size={16} fill={saved ? "currentColor" : "none"}/>{saved ? "Saved" : "Save to watchlist"}</button>
-            <button type="button" className={compared ? "active" : ""} onClick={onCompare} aria-pressed={compared}><GitCompareArrows size={16}/>{compared ? "Selected to compare" : "Add to comparison"}</button>
-          </div>
+            <p className="source-disclaimer detail-v2-disclaimer"><ShieldCheck size={16}/> Confirm price, availability, ownership and vehicle condition directly with the seller before purchase.</p>
 
-          <div className="detail-source-actions">
-            <a className="source-button" href={listing.x_url} target="_blank" rel="noreferrer">View original seller post <ExternalLink size={17}/></a>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button type="button" className="copy-link-button" onClick={copyListingLink} aria-label="Copy listing link"><Copy size={17}/></button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content className="torque-tooltip" sideOffset={8}>Copy listing link<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
-          </div>
-          <p className="source-disclaimer"><ShieldCheck size={16}/> Listing details may be incomplete or change after publication. Confirm price, availability, ownership and condition directly with the seller.</p>
+            <details className="detail-seller-disclosure">
+              <summary><span><small>SELLER DESCRIPTION</small><strong>Read the original listing text</strong></span><ChevronDown size={17}/></summary>
+              <p>{listing.post?.text || "No seller description was stored for this listing."}</p>
+            </details>
+          </aside>
         </div>
       </motion.section>
 
-      <motion.section className="detail-grid-section" initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: reduceMotion ? 0 : 0.45 }}>
-        <div className="spec-panel">
-          <div className="panel-title"><div><small>01 / SPECIFICATIONS</small><h2>Vehicle details</h2></div><span>FROM THIS LISTING</span></div>
-          <div className="spec-grid">
-            {specs.length ? specs.map(([label, value]) => <div key={String(label)}><small>{label}</small><strong>{String(value)}</strong></div>) : <p className="muted">No additional specifications are available yet.</p>}
-          </div>
-        </div>
+      <section className="detail-v2-content">
+        <motion.div className="detail-v2-overview-grid" initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.15 }} transition={{ duration: reduceMotion ? 0 : 0.38 }}>
+          <section className="spec-panel detail-v2-card">
+            <div className="panel-title"><div><small>VEHICLE DETAILS</small><h2>Specifications</h2></div><span>AS LISTED</span></div>
+            <div className="spec-grid detail-v2-spec-grid">
+              {specs.length ? specs.map(([label, value]) => <div key={String(label)}><small>{label}</small><strong>{String(value)}</strong></div>) : <p className="muted">No additional specifications are available yet.</p>}
+            </div>
+          </section>
 
-        <div className="evidence-panel">
-          <div className="panel-title"><div><small>02 / SOURCES</small><h2>Where the details came from</h2></div><Sparkles size={20}/></div>
-          <div className="evidence-list">
-            {evidenceEntries.length ? evidenceEntries.map(([key, raw]) => {
-              const value = typeof raw === "object" && raw ? raw as Record<string, unknown> : { value: raw };
-              const confidence = confidenceToPercent(value.confidence);
-              const source = String(value.source || "unspecified").replaceAll("_", " ");
-              return (
-                <div className="evidence-row" key={key}>
-                  <span><small>{key.replaceAll("_", " ")}</small><strong>{String(value.value ?? "Observed")}</strong></span>
-                  <span className="evidence-meta">
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild><i className="evidence-source-chip" tabIndex={0}>{source}</i></Tooltip.Trigger>
-                      <Tooltip.Portal><Tooltip.Content className="torque-tooltip" sideOffset={8}>Source: {source}<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
-                    </Tooltip.Root>
-                    {confidence && <b>{confidence}</b>}
-                  </span>
-                </div>
-              );
-            }) : <p className="muted">No field-level source information is available for this listing yet.</p>}
-          </div>
-        </div>
-      </motion.section>
+          <section className="spec-panel detail-v2-card">
+            <div className="panel-title"><div><small>FEATURES</small><h2>Listed or observed</h2></div><span>{listing.features?.length || 0} ITEMS</span></div>
+            <div className="feature-cloud detail-v2-feature-cloud">
+              {listing.features?.length ? listing.features.map((feature, index) => <span key={`${feature.name || "feature"}-${index}`}>{String(feature.name || feature.value || "Feature")}</span>) : <p className="muted">No additional features were identified.</p>}
+            </div>
+          </section>
+        </motion.div>
 
-      <motion.section className="detail-grid-section secondary" initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: reduceMotion ? 0 : 0.45 }}>
-        <div className="spec-panel">
-          <div className="panel-title"><div><small>03 / FEATURES</small><h2>Listed or observed features</h2></div><span>{listing.features?.length || 0} ITEMS</span></div>
-          <div className="feature-cloud">
-            {listing.features?.length ? listing.features.map((feature, index) => <span key={`${feature.name || "feature"}-${index}`}>{String(feature.name || feature.value || "Feature")}</span>) : <p className="muted">No additional features were identified.</p>}
-          </div>
-        </div>
-        <div className="evidence-panel">
-          <div className="panel-title"><div><small>04 / PHOTOS</small><h2>Photo observations</h2></div><span>NOT AN INSPECTION</span></div>
-          <ol className="observation-list">
+        <motion.section className="detail-v2-card detail-v2-observations" initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.15 }} transition={{ duration: reduceMotion ? 0 : 0.38 }}>
+          <div className="panel-title"><div><small>PHOTO NOTES</small><h2>What can be seen in the photos</h2></div><span>REFERENCE ONLY</span></div>
+          <ol className="observation-list detail-v2-observation-list">
             {listing.observations?.length ? listing.observations.map((observation, index) => <li key={index}><i>{String(index + 1).padStart(2, "0")}</i><span>{observation}</span></li>) : <li><i>—</i><span>No photo observations recorded.</span></li>}
           </ol>
-        </div>
-      </motion.section>
+        </motion.section>
 
-      <section className="detail-cta">
-        <div><small>KEEP BROWSING</small><h2>See the rest of the current listings.</h2><p>Shortlist another vehicle or add a few cars to Compare.</p></div>
+        {evidenceEntries.length > 0 && (
+          <details className="detail-v2-provenance">
+            <summary>
+              <span><Sparkles size={17}/><span><small>DETAIL SOURCES</small><strong>How these vehicle details were identified</strong></span></span>
+              <span>{evidenceEntries.length} fields <ChevronDown size={17}/></span>
+            </summary>
+            <div className="evidence-list detail-v2-evidence-list">
+              {evidenceEntries.map(([key, raw]) => {
+                const value = typeof raw === "object" && raw ? raw as Record<string, unknown> : { value: raw };
+                const confidence = confidenceToPercent(value.confidence);
+                const source = String(value.source || "unspecified").replaceAll("_", " ");
+                return (
+                  <div className="evidence-row" key={key}>
+                    <span><small>{key.replaceAll("_", " ")}</small><strong>{String(value.value ?? "Observed")}</strong></span>
+                    <span className="evidence-meta">
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild><i className="evidence-source-chip" tabIndex={0}>{source}</i></Tooltip.Trigger>
+                        <Tooltip.Portal><Tooltip.Content className="torque-tooltip" sideOffset={8}>Source: {source}<Tooltip.Arrow className="torque-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
+                      </Tooltip.Root>
+                      {confidence && <b>{confidence}</b>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        )}
+      </section>
+
+      <section className="detail-cta detail-v2-cta">
+        <div><small>KEEP LOOKING</small><h2>Compare it with the rest of the market.</h2><p>Browse more listings or add a few vehicles to Compare before deciding.</p></div>
         <Link className="primary-action" href="/inventory">Browse listings <ArrowUpRight size={18}/></Link>
       </section>
 
