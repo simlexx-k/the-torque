@@ -87,9 +87,6 @@ export const metadata: Metadata = {
     email: false,
     address: false,
   },
-  other: {
-    "google-adsense-account": ADSENSE_CLIENT,
-  },
 };
 
 export const viewport: Viewport = {
@@ -101,6 +98,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en" className={geist.variable} suppressHydrationWarning>
       <head>
+        <meta name="google-adsense-account" content={ADSENSE_CLIENT} />
         <script
           async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
