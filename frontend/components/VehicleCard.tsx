@@ -7,11 +7,13 @@ import { Popover, Tooltip } from "radix-ui";
 import {
   ArrowUpRight,
   Bookmark,
+  Clock3,
   Gauge,
   GitCompareArrows,
   Images,
   MapPin,
   MoreHorizontal,
+  Repeat2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Listing } from "@/lib/types";
@@ -21,6 +23,13 @@ import { useVehicleCollections } from "@/lib/useVehicleCollections";
 
 function clean(value?: string | null) {
   return value?.trim() || null;
+}
+
+function isFreshListing(listing: Listing) {
+  const value = listing.created_at || listing.post?.created_at;
+  if (!value) return false;
+  const age = Date.now() - new Date(value).getTime();
+  return Number.isFinite(age) && age >= 0 && age <= 24 * 60 * 60 * 1000;
 }
 
 export default function VehicleCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
@@ -33,6 +42,8 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
   const { isSaved, isCompared, toggleSaved, toggleCompare } = useVehicleCollections();
   const saved = isSaved(collectionKey, listing.id);
   const compared = isCompared(collectionKey, listing.id);
+  const fresh = isFreshListing(listing);
+  const repost = Boolean(listing.market?.is_repost);
 
   const smartTags = [
     clean(listing.transmission),
@@ -96,6 +107,12 @@ export default function VehicleCard({ listing, index = 0 }: { listing: Listing; 
         </Link>
 
         <span className={`status-chip status-${status}`}>{status.replaceAll("_", " ")}</span>
+        {(fresh || repost) && (
+          <div className="market-card-badges" aria-label="Listing intelligence">
+            {fresh && <span><Clock3 size={11}/> New today</span>}
+            {repost && <span><Repeat2 size={11}/> Reposted</span>}
+          </div>
+        )}
 
         {listing.post?.media && listing.post.media.length > 1 && (
           <span className="media-count"><Images size={12} /> {listing.post.media.length}</span>
