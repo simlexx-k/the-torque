@@ -3,7 +3,7 @@
 :root,
 [data-theme="light"] {
   --sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   /* These values keep normal-size secondary text above WCAG AA contrast on
      the light surfaces used across The Torque. */
@@ -15,7 +15,7 @@
 
 [data-theme="dark"] {
   --sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --theme-text-soft: #c0c5ca;
   --theme-text-muted: #9097a0;
   --theme-chrome-muted: #959ca4;
