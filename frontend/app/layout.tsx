@@ -17,6 +17,7 @@ import "./theme.css";
 import "./theme-coverage.css";
 
 const siteUrl = getSiteUrl();
+const ADSENSE_CLIENT = "ca-pub-5456473575052681";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -77,6 +78,9 @@ export const metadata: Metadata = {
     email: false,
     address: false,
   },
+  other: {
+    "google-adsense-account": ADSENSE_CLIENT,
+  },
 };
 
 export const viewport: Viewport = {
@@ -87,6 +91,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>
