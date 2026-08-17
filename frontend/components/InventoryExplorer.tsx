@@ -4,10 +4,13 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
-import { Filter, LayoutGrid, ListFilter, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Popover } from "radix-ui";
+import { Bell, BookmarkPlus, Filter, LayoutGrid, ListFilter, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { listingCollectionKey } from "@/lib/listingRef";
+import { type SavedSearch, type SavedSearchFilters, useSavedSearches } from "@/lib/useSavedSearches";
 import VehicleCard from "@/components/VehicleCard";
 
 const statusOptions = ["all", "available", "reserved", "sold", "price_drop"] as const;
@@ -36,6 +39,7 @@ export default function InventoryExplorer() {
   const listings = listingsQuery.data ?? [];
   const makes = useMemo(() => Array.from(new Set(listings.map((item) => item.make).filter(Boolean) as string[])).sort(), [listings]);
   const bodies = useMemo(() => Array.from(new Set(listings.map((item) => item.body_type).filter(Boolean) as string[])).sort(), [listings]);
+  const { savedSearches, summaries, totalNewMatches, saveSearch, removeSearch, markViewed } = useSavedSearches(listings);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -62,8 +66,25 @@ export default function InventoryExplorer() {
   }, [listings, query, status, make, body, sort]);
 
   const activeFilters = [query, status !== "all" ? status : "", make !== "all" ? make : "", body !== "all" ? body : "", sort !== "latest" ? sort : ""].filter(Boolean).length;
+  const currentSavedFilters: SavedSearchFilters = { q: query, status, make, body, sort };
 
   const reset = () => setFilters({ q: null, status: null, make: null, body: null, sort: null });
+
+  const saveCurrentSearch = () => {
+    const result = saveSearch(currentSavedFilters);
+    toast(result.created ? `Saved search: ${result.search.label}` : "That search is already saved.");
+  };
+
+  const applySavedSearch = (saved: SavedSearch) => {
+    setFilters({
+      q: saved.filters.q || null,
+      status: statusOptions.includes(saved.filters.status as (typeof statusOptions)[number]) ? saved.filters.status as (typeof statusOptions)[number] : "all",
+      make: saved.filters.make === "all" ? null : saved.filters.make,
+      body: saved.filters.body === "all" ? null : saved.filters.body,
+      sort: sortOptions.includes(saved.filters.sort as (typeof sortOptions)[number]) ? saved.filters.sort as (typeof sortOptions)[number] : "latest",
+    });
+    markViewed(saved.id);
+  };
 
   return (
     <main className="product-page inventory-page">
@@ -71,7 +92,7 @@ export default function InventoryExplorer() {
         <div>
           <div className="page-kicker"><span>02</span> ALL LISTINGS</div>
           <h1>Search the full line-up.<br/><em>Filter by what matters.</em></h1>
-          <p>Narrow the current listings by make, body style and availability, then open any vehicle for its photos, seller post and recorded details.</p>
+          <p>Narrow the current listings by make, body style and availability, then save a search to see when fresh matches arrive.</p>
         </div>
         <div className="page-hero-stat">
           <Sparkles size={18} />
@@ -82,7 +103,38 @@ export default function InventoryExplorer() {
       <section className="inventory-workbench">
         <div className="workbench-title-row">
           <div><SlidersHorizontal size={18} /><span>Refine listings</span></div>
-          <small>{activeFilters ? `${activeFilters} active filters · saved in this URL` : "No filters applied"}</small>
+          <div className="workbench-meta-actions">
+            <small>{activeFilters ? `${activeFilters} active filters · saved in this URL` : "No filters applied"}</small>
+            <button type="button" className="save-search-button" onClick={saveCurrentSearch}><BookmarkPlus size={15}/> Save search</button>
+            <Popover.Root>
+              <Popover.Trigger asChild>
+                <button type="button" className="saved-searches-button" aria-label="Open saved searches">
+                  <Bell size={15}/><span>Saved</span>{savedSearches.length > 0 && <b>{savedSearches.length}</b>}{totalNewMatches > 0 && <i>{totalNewMatches} new</i>}
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content className="saved-searches-popover" align="end" sideOffset={9} collisionPadding={14}>
+                  <div className="saved-searches-head"><div><small>WATCHED SEARCHES</small><strong>Saved searches</strong></div>{totalNewMatches > 0 && <span>{totalNewMatches} fresh matches</span>}</div>
+                  {summaries.length ? (
+                    <div className="saved-search-list">
+                      {summaries.map(({ search, matchCount, newCount }) => (
+                        <div className="saved-search-row" key={search.id}>
+                          <button type="button" className="saved-search-open" onClick={() => applySavedSearch(search)}>
+                            <strong>{search.label}</strong>
+                            <span>{matchCount} current {matchCount === 1 ? "match" : "matches"}{newCount > 0 ? ` · ${newCount} new` : ""}</span>
+                          </button>
+                          <button type="button" className="saved-search-delete" onClick={() => removeSearch(search.id)} aria-label={`Delete saved search ${search.label}`}><Trash2 size={14}/></button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="saved-search-empty">Save any set of filters and The Torque will remember it on this device and flag newer matches.</p>
+                  )}
+                  <Popover.Arrow className="smart-spec-arrow" />
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+          </div>
         </div>
 
         <div className="inventory-controls-grid">
