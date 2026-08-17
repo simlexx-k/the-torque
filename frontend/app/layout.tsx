@@ -18,6 +18,7 @@ import "./theme.css";
 import "./theme-coverage.css";
 import "./intelligence.css";
 import "./typography.css";
+import "./detail-v2.css";
 
 const siteUrl = getSiteUrl();
 const ADSENSE_CLIENT = "ca-pub-5456473575052681";
