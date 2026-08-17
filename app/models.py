@@ -98,4 +98,26 @@ class Listing(Base):
     observations: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
+    # Market-intelligence fields are additive. fingerprint is intentionally
+    # opaque and internal; canonical_listing_id links likely reposts to the
+    # earliest matching observation while preserving every source row.
+    fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    canonical_listing_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     post: Mapped[Post] = relationship(back_populates="listings")
+
+
+class ListingSnapshot(Base):
+    __tablename__ = "listing_snapshots"
+    __table_args__ = (UniqueConstraint("source_listing_id", name="uq_listing_snapshot_source_listing"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    canonical_listing_id: Mapped[int] = mapped_column(Integer, index=True)
+    source_listing_id: Mapped[int] = mapped_column(Integer, index=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    mileage_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="available")
