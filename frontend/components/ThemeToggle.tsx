@@ -28,53 +28,33 @@ export default function ThemeToggle() {
 
   useEffect(() => setMounted(true), []);
 
-  const activeTheme = mounted && (theme === "dark" || theme === "light") ? theme : "light";
+  const isDark = mounted && theme === "dark";
+  const destination = isDark ? "light" : "dark";
 
   return (
-    <div className="theme-switch" role="group" aria-label="Colour theme" data-ready={mounted ? "true" : "false"}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type="button"
-            className={activeTheme === "light" ? "active" : ""}
-            onClick={() => setTheme("light")}
-            aria-label="Use light theme"
-            aria-pressed={activeTheme === "light"}
-            disabled={!mounted}
-          >
-            <Sun size={15} />
-            <span>Light</span>
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content className="torque-tooltip" side="bottom" sideOffset={8}>
-            Light theme
-            <Tooltip.Arrow className="torque-tooltip-arrow" />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type="button"
-            className={activeTheme === "dark" ? "active" : ""}
-            onClick={() => setTheme("dark")}
-            aria-label="Use dark theme"
-            aria-pressed={activeTheme === "dark"}
-            disabled={!mounted}
-          >
-            <Moon size={15} />
-            <span>Dark</span>
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content className="torque-tooltip" side="bottom" sideOffset={8}>
-            Dark theme
-            <Tooltip.Arrow className="torque-tooltip-arrow" />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </div>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          className="theme-toggle"
+          data-theme-state={isDark ? "dark" : "light"}
+          aria-label={`Switch to ${destination} theme`}
+          aria-pressed={isDark}
+          onClick={() => setTheme(destination)}
+          disabled={!mounted}
+        >
+          <span className="theme-toggle-icon theme-toggle-icon-sun" aria-hidden="true"><Sun size={14} /></span>
+          <span className="theme-toggle-track" aria-hidden="true"><span className="theme-toggle-thumb" /></span>
+          <span className="theme-toggle-icon theme-toggle-icon-moon" aria-hidden="true"><Moon size={14} /></span>
+          <span className="theme-toggle-label">{isDark ? "Dark" : "Light"}</span>
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content className="torque-tooltip" side="bottom" sideOffset={8}>
+          Switch to {destination} theme
+          <Tooltip.Arrow className="torque-tooltip-arrow" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }

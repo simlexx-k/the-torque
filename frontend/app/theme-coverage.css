@@ -1,0 +1,21 @@
+/* Residual theme coverage loaded after theme.css. */
+.signal-provider-card{border-color:var(--theme-border-strong);background:var(--theme-card);color:var(--theme-accent-text)}
+.signal-provider-card small,.signal-provider-card em{color:var(--theme-text-muted)}.signal-provider-card strong{color:var(--theme-text)}
+.signal-summary-strip{background:var(--theme-page-soft);color:var(--theme-text);border-bottom-color:var(--theme-border)}
+.signal-summary-strip article{border-right-color:var(--theme-border)}.signal-summary-strip small,.signal-summary-strip span{color:var(--theme-text-muted)}.signal-summary-strip strong{color:var(--theme-text)}
+.signal-workbench{background:var(--theme-page);color:var(--theme-text)}.signal-filter-row{border-color:var(--theme-border);background:var(--theme-card)}
+.signal-filter-tabs button,.signal-refresh{border-color:var(--theme-border);background:transparent;color:var(--theme-text-soft)}
+.signal-filter-tabs button:hover,.signal-filter-tabs button.active,.signal-refresh:hover{border-color:var(--theme-border-strong);background:var(--theme-card-muted);color:var(--theme-text)}
+.signal-filter-tabs button.active{color:var(--theme-accent-text)}.signal-record{border-color:var(--theme-border);background:var(--theme-card);color:var(--theme-text)}
+.signal-record-meta{border-bottom-color:var(--theme-border);color:var(--theme-text-muted)}.signal-state{background:var(--theme-card-muted);color:var(--theme-text-soft)}
+.signal-copy>p{color:var(--theme-text)}.signal-record-stats span{border-color:var(--theme-border);color:var(--theme-text-muted)}
+.signal-record-footer{color:var(--theme-text-muted)}.signal-record-footer a{color:var(--theme-text)}.signal-record-footer a:hover{color:var(--theme-accent-text)}
+.signal-empty{border-color:var(--theme-border);color:var(--theme-text-muted)}
+.signal-media-grid,.signal-media-grid img,.vehicle-placeholder,.compare-image-placeholder{background-color:#15181c}
+.system-health-badge{border-color:var(--theme-border-strong);background:var(--theme-card)}.system-health-badge small{color:var(--theme-text-muted)}.system-health-badge strong{color:var(--theme-text)}
+.runtime-list strong{color:var(--theme-text)}
+.skeleton-card,.skeleton-card>div,.skeleton-card>span{border-color:var(--theme-border);background-color:var(--theme-card-muted)}
+.detail-loading{color:var(--theme-text)}.detail-loading>a{color:var(--theme-accent-text)}
+::selection{background:rgba(215,255,63,.62);color:#0d0e10}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline-color:var(--theme-focus)}
+[data-theme="light"] body{color-scheme:light}[data-theme="dark"] body{color-scheme:dark}
