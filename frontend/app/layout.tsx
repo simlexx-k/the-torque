@@ -14,6 +14,7 @@ import "./gallery.css";
 import "./brand.css";
 import "./cards.css";
 import "./theme.css";
+import "./theme-coverage.css";
 
 const siteUrl = getSiteUrl();
 
@@ -79,7 +80,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "light dark",
+  colorScheme: "dark light",
   themeColor: "#f3f2ed",
 };
 
