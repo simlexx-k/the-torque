@@ -19,6 +19,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import type { Listing } from "@/lib/types";
 import { fetchJson } from "@/lib/api";
 import { vehicleTitle } from "@/lib/format";
@@ -116,6 +117,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         <div className="app-topbar-actions">
           <span className="app-live-state"><Activity size={14} /><i /> CURRENT LISTINGS</span>
+          <ThemeToggle />
           <button className="command-trigger" type="button" onClick={() => setCommandOpen(true)}>
             <Search size={16} /><span>Search vehicles</span><kbd>⌘K</kbd>
           </button>
