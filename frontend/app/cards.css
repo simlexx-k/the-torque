@@ -282,8 +282,7 @@
 .smart-spec-link { margin-top: 11px; min-height: 31px; padding: 0 9px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; background: rgba(215,255,63,.08); color: var(--acid); font-size: 8px; }
 .smart-spec-link:hover { background: rgba(215,255,63,.13); }
 
-.smart-vehicle-card.skeleton-card { height: 315px; }
-.smart-vehicle-card.skeleton-card > div:first-child,
+.vehicle-grid .skeleton-card { height: 315px; }
 .vehicle-grid .skeleton-card > div:first-child { height: 165px; }
 
 @media (max-width: 1280px) {
