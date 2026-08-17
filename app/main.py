@@ -13,7 +13,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import Settings, get_settings
 from app.db import SessionLocal, create_db
-from app.models import Listing, Post, Source
+from app.listing_intelligence import summarise_history
+from app.models import Listing, ListingSnapshot, Post, Source
 from app.public_ids import is_legacy_numeric_listing_ref, is_listing_public_id
 from app.scheduler import scheduler_loop
 from app.service import IngestionService
@@ -56,7 +57,7 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 app = FastAPI(
     title="The Torque",
-    version="0.5.0",
+    version="0.6.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.api_docs_enabled else None,
     redoc_url="/redoc" if settings.api_docs_enabled else None,
@@ -97,7 +98,20 @@ def _post_ai_meta(post: Post) -> dict:
     return meta
 
 
-def _serialize_listing(row: Listing) -> dict:
+def _listing_market_meta(row: Listing, db: Session | None = None) -> dict:
+    canonical_id = row.canonical_listing_id or row.id
+    canonical = row
+    if db is not None and canonical_id != row.id:
+        canonical = db.get(Listing, canonical_id) or row
+    return {
+        "is_repost": canonical_id != row.id,
+        "canonical_public_id": canonical.public_id,
+        "first_seen_at": canonical.first_seen_at or row.first_seen_at or canonical.created_at,
+        "last_seen_at": canonical.last_seen_at or row.last_seen_at or canonical.created_at,
+    }
+
+
+def _serialize_listing(row: Listing, db: Session | None = None) -> dict:
     post = row.post
     return {
         # id/post_id remain for backwards-compatible API consumers. Public web
@@ -127,6 +141,7 @@ def _serialize_listing(row: Listing) -> dict:
         "features": row.features,
         "observations": row.observations,
         "created_at": row.created_at,
+        "market": _listing_market_meta(row, db),
         "post": {
             "x_post_id": post.x_post_id,
             "text": post.text,
@@ -150,6 +165,14 @@ def _listing_from_reference(db: Session, listing_ref: str) -> tuple[Listing | No
     if is_legacy_numeric_listing_ref(reference):
         return db.get(Listing, int(reference)), True
     return None, False
+
+
+def _legacy_headers(response: Response, row: Listing, legacy_numeric: bool) -> None:
+    if not legacy_numeric:
+        return
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = f'</api/listings/{row.public_id}>; rel="canonical"'
+    response.headers["X-Torque-Public-Id"] = row.public_id
 
 
 @app.get("/")
@@ -282,7 +305,7 @@ def posts(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(ge
 @app.get("/api/listings")
 def listings(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
     rows = db.scalars(select(Listing).order_by(desc(Listing.created_at), desc(Listing.id)).limit(limit)).all()
-    return [_serialize_listing(row) for row in rows]
+    return [_serialize_listing(row, db) for row in rows]
 
 
 @app.get("/api/listings/{listing_ref}")
@@ -290,13 +313,29 @@ def listing_detail(listing_ref: str, response: Response, db: Session = Depends(g
     row, legacy_numeric = _listing_from_reference(db, listing_ref)
     if row is None:
         raise HTTPException(status_code=404, detail="Listing not found")
+    _legacy_headers(response, row, legacy_numeric)
+    return _serialize_listing(row, db)
 
-    if legacy_numeric:
-        # Old integrations keep receiving a normal 200 JSON response. These
-        # headers advertise the canonical public reference without forcing a
-        # redirect that could break API clients.
-        response.headers["Deprecation"] = "true"
-        response.headers["Link"] = f'</api/listings/{row.public_id}>; rel="canonical"'
-        response.headers["X-Torque-Public-Id"] = row.public_id
 
-    return _serialize_listing(row)
+@app.get("/api/listings/{listing_ref}/history")
+def listing_history(listing_ref: str, response: Response, db: Session = Depends(get_db)):
+    row, legacy_numeric = _listing_from_reference(db, listing_ref)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    _legacy_headers(response, row, legacy_numeric)
+
+    canonical_id = row.canonical_listing_id or row.id
+    canonical = db.get(Listing, canonical_id) or row
+    snapshots = list(
+        db.scalars(
+            select(ListingSnapshot)
+            .where(ListingSnapshot.canonical_listing_id == canonical_id)
+            .order_by(ListingSnapshot.observed_at.asc(), ListingSnapshot.id.asc())
+        ).all()
+    )
+    return {
+        "listing_public_id": row.public_id,
+        "canonical_public_id": canonical.public_id,
+        "is_repost": canonical_id != row.id,
+        **summarise_history(snapshots),
+    }
