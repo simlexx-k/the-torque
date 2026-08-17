@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import type { ReactNode } from "react";
 import Providers from "@/components/Providers";
 import AppShell from "@/components/AppShell";
@@ -15,9 +16,16 @@ import "./brand.css";
 import "./cards.css";
 import "./theme.css";
 import "./theme-coverage.css";
+import "./intelligence.css";
+import "./typography.css";
 
 const siteUrl = getSiteUrl();
 const ADSENSE_CLIENT = "ca-pub-5456473575052681";
+const geist = Geist({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist-sans",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -90,7 +98,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={geist.variable} suppressHydrationWarning>
       <head>
         <script
           async
