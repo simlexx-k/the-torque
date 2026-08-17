@@ -30,7 +30,7 @@ function shortDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-KE", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
-export default function ListingHistoryPanel({ id }: { id: string }) {
+export default function ListingHistoryPanel({ id, inline = false }: { id: string; inline?: boolean }) {
   const historyQuery = useQuery({
     queryKey: ["listing-history", id],
     queryFn: () => fetchJson<ListingHistory>(`/api/torque/listings/${encodeURIComponent(id)}/history`),
@@ -49,7 +49,7 @@ export default function ListingHistoryPanel({ id }: { id: string }) {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <button type="button" className={`listing-history-trigger${movementDown ? " price-down" : ""}`}>
+        <button type="button" className={`listing-history-trigger${inline ? " inline" : ""}${movementDown ? " price-down" : ""}`}>
           <History size={16}/>
           <span><small>PRICE HISTORY</small><strong>{history.observations.length} {history.observations.length === 1 ? "observation" : "observations"}</strong></span>
           {movementDown && <b>{formatPrice(Math.abs(movement), currency)} lower</b>}
