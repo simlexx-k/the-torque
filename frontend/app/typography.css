@@ -1,0 +1,107 @@
+/* Typography and contrast layer — loaded last after product/theme styles. */
+
+:root,
+[data-theme="light"] {
+  --sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* These values keep normal-size secondary text above WCAG AA contrast on
+     the light surfaces used across The Torque. */
+  --theme-text-soft: #555953;
+  --theme-text-muted: #656861;
+  --theme-chrome-muted: #60635e;
+  --theme-accent-text: #5d6d00;
+}
+
+[data-theme="dark"] {
+  --sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --theme-text-soft: #c0c5ca;
+  --theme-text-muted: #9097a0;
+  --theme-chrome-muted: #959ca4;
+  --theme-accent-text: var(--acid);
+}
+
+html,
+body {
+  font-family: var(--sans);
+  font-optical-sizing: auto;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.mono,
+code,
+kbd,
+pre,
+.section-kicker,
+.page-kicker,
+.vehicle-eyebrow,
+.market-card-badges,
+.history-sheet small,
+.saved-searches-popover small {
+  font-family: var(--mono);
+}
+
+/* Bring legacy hard-coded secondary copy onto the semantic theme tokens. */
+.vehicle-eyebrow,
+.workbench-title-row small,
+.results-heading-row small,
+.results-heading-row span,
+.page-hero p,
+.catalog-entry-copy p,
+.catalog-snapshot span,
+.product-state p,
+.analysis-panel-head small,
+.analysis-empty,
+.panel-title small,
+.spec-grid small,
+.evidence-row small,
+.muted,
+.smart-spec-heading > span,
+.smart-spec-grid dt,
+.smart-spec-empty,
+.torque-footer-brand small,
+.torque-footer-brand p,
+.torque-footer-nav small,
+.torque-footer-bottom,
+.torque-footer-bottom p {
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .torque-footer-nav a,
+[data-theme="light"] .torque-footer-brand > a,
+[data-theme="light"] .torque-footer-brand strong {
+  color: var(--theme-footer-text);
+}
+
+[data-theme="dark"] .torque-footer-nav a,
+[data-theme="dark"] .torque-footer-brand > a,
+[data-theme="dark"] .torque-footer-brand strong {
+  color: var(--theme-footer-text);
+}
+
+.product-search-field input::placeholder,
+.search-field input::placeholder,
+.catalog-search-box input::placeholder {
+  color: var(--theme-text-muted);
+  opacity: 1;
+}
+
+/* Geist is slightly more compact than the previous fallback stack. These
+   restrained tracking adjustments keep labels crisp without making body copy
+   feel mechanical. */
+body { letter-spacing: -0.008em; }
+p, li, input, select, button { letter-spacing: 0; }
+h1, h2, h3, .vehicle-name { text-wrap: balance; }
+
+@media (max-width: 620px) {
+  body { letter-spacing: 0; }
+}
