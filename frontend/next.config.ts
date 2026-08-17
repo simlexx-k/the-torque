@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "pbs.twimg.com",
-        pathname: "/media/**",
+        pathname: "/**",
       },
       {
         protocol: "https",
