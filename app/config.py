@@ -29,8 +29,11 @@ class Settings(BaseSettings):
     x_target_username: str = ""
     x_exclude_replies: bool = False
     x_exclude_retweets: bool = True
-    x_max_pages_per_poll: int = Field(default=5, ge=1, le=20)
-    initial_lookback_posts: int = Field(default=100, ge=5, le=100)
+    x_max_pages_per_poll: int = Field(default=5, ge=1, le=32)
+    # Total number of posts to backfill for a newly tracked account. X's User
+    # Posts endpoint pages at 100 results/request and can expose up to 3,200
+    # recent posts; x_max_pages_per_poll remains the per-cycle safety ceiling.
+    initial_lookback_posts: int = Field(default=500, ge=5, le=3200)
 
     # Multimodal enrichment. Gemini is the default because it supports image
     # understanding + structured JSON and has a useful free developer tier.
