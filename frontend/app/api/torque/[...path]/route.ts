@@ -6,6 +6,7 @@ const PUBLIC_LISTING_RE = /^lst_[A-Za-z0-9_-]{22}$/;
 const LEGACY_LISTING_RE = /^[1-9][0-9]{0,17}$/;
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const OPERATOR_ROUTES = new Set(["overview", "posts", "status"]);
+const COLLECTION_QUERY_KEYS = new Set(["limit", "page", "source"]);
 
 function backendBase() {
   const configured = process.env.TORQUE_API_BASE_URL || process.env.TORQUE_API_INTERNAL_URL;
@@ -17,7 +18,7 @@ function backendBase() {
 function backendHeaders() {
   const headers = new Headers({
     Accept: "application/json",
-    "User-Agent": "the-torque-vercel-proxy/1.1",
+    "User-Agent": "the-torque-vercel-proxy/1.2",
   });
 
   const clientId = process.env.CF_ACCESS_CLIENT_ID;
@@ -68,10 +69,10 @@ function routeAllowed(path: string[]) {
 function queryAllowed(request: NextRequest, path: string[]) {
   const keys = Array.from(request.nextUrl.searchParams.keys());
   if (path[0] === "listings" && path.length === 1) {
-    return keys.every((key) => key === "limit");
+    return keys.every((key) => COLLECTION_QUERY_KEYS.has(key));
   }
   if (path[0] === "posts") {
-    return keys.every((key) => key === "limit");
+    return keys.every((key) => COLLECTION_QUERY_KEYS.has(key));
   }
   return keys.length === 0;
 }
