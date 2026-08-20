@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -20,6 +20,7 @@ class XAPIError(RuntimeError):
 class XPostBatch:
     posts: list[dict[str, Any]]
     media_by_key: dict[str, dict[str, Any]]
+    referenced_posts_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class XClient:
@@ -66,6 +67,7 @@ class XClient:
     def fetch_user_posts(self, user_id: str, since_id: str | None = None) -> XPostBatch:
         posts: list[dict[str, Any]] = []
         media_by_key: dict[str, dict[str, Any]] = {}
+        referenced_posts_by_id: dict[str, dict[str, Any]] = {}
         pagination_token: str | None = None
         initial_target = self.settings.initial_lookback_posts if since_id is None else None
 
@@ -114,10 +116,15 @@ class XClient:
 
             payload = self._get(f"/users/{user_id}/tweets", params=params)
             posts.extend(payload.get("data", []))
-            for media in payload.get("includes", {}).get("media", []):
+            includes = payload.get("includes", {})
+            for media in includes.get("media", []):
                 key = media.get("media_key")
                 if key:
                     media_by_key[key] = media
+            for referenced_post in includes.get("tweets", []):
+                post_id = referenced_post.get("id")
+                if post_id:
+                    referenced_posts_by_id[post_id] = referenced_post
 
             pagination_token = payload.get("meta", {}).get("next_token")
             if not pagination_token:
@@ -137,4 +144,8 @@ class XClient:
         if initial_target is not None and len(posts) > initial_target:
             posts = posts[:initial_target]
 
-        return XPostBatch(posts=posts, media_by_key=media_by_key)
+        return XPostBatch(
+            posts=posts,
+            media_by_key=media_by_key,
+            referenced_posts_by_id=referenced_posts_by_id,
+        )
