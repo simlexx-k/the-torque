@@ -12,7 +12,7 @@ from app.enrichment import VehicleEnricher, should_enrich
 from app.listing_intelligence import register_listing_intelligence
 from app.models import Listing, Media, Post, Source
 from app.schemas import ListingAnalysis, VehicleCandidate
-from app.x_client import XAPIError, XClient
+from app.x_client import XAPIError, XClient, XPostBatch
 
 logger = logging.getLogger(__name__)
 
@@ -386,6 +386,59 @@ class IngestionService:
         session.flush()
         return post
 
+    def _recover_same_source_roots(
+        self,
+        session: Session,
+        source: Source,
+        batch: XPostBatch,
+        x_client: XClient,
+    ) -> list[dict[str, Any]]:
+        posts = list(batch.posts)
+        known_ids = {str(raw.get("id")) for raw in posts if raw.get("id")}
+        root_ids = {
+            str(raw.get("conversation_id"))
+            for raw in posts
+            if raw.get("conversation_id") and str(raw.get("conversation_id")) != str(raw.get("id"))
+        }
+
+        for root_id in sorted(root_ids, key=int):
+            if root_id in known_ids:
+                continue
+            existing = session.scalar(
+                select(Post.id).where(Post.source_id == source.id, Post.x_post_id == root_id)
+            )
+            if existing is not None:
+                continue
+
+            candidate = batch.referenced_posts_by_id.get(root_id)
+            if candidate is not None and str(candidate.get("author_id") or "") == str(source.x_user_id):
+                posts.append(candidate)
+                known_ids.add(root_id)
+                continue
+
+            # conversation_id is the thread root. If X did not include that
+            # referenced post in the timeline expansion, fetch it directly so a
+            # same-dealer thread can still be reconstructed outside lookback.
+            try:
+                root_batch = x_client.fetch_post(root_id)
+            except XAPIError as exc:
+                if exc.status_code == 404:
+                    logger.info("X thread root %s is unavailable; keeping reply standalone", root_id)
+                    continue
+                raise
+
+            if not root_batch.posts:
+                continue
+            root = root_batch.posts[0]
+            if str(root.get("author_id") or "") != str(source.x_user_id):
+                continue
+            posts.append(root)
+            known_ids.add(root_id)
+            batch.media_by_key.update(root_batch.media_by_key)
+            batch.referenced_posts_by_id.update(root_batch.referenced_posts_by_id)
+
+        return posts
+
     def _run_source(
         self,
         session: Session,
@@ -421,6 +474,7 @@ class IngestionService:
                 "last_seen_post_id": source.last_seen_post_id,
             }
 
+        raw_posts = self._recover_same_source_roots(session, source, batch, x_client)
         new_posts = 0
         new_listings = 0
         newest_id = source.last_seen_post_id
@@ -429,7 +483,7 @@ class IngestionService:
         # Capture the complete X batch first. A self-thread may contain important
         # details in a later reply, so enrichment must see all newly fetched
         # thread members rather than processing the root too early.
-        for raw in sorted(batch.posts, key=lambda item: int(item["id"])):
+        for raw in sorted(raw_posts, key=lambda item: int(item["id"])):
             existing = session.scalar(select(Post).where(Post.x_post_id == raw["id"]))
             newest_id = raw["id"] if newest_id is None or int(raw["id"]) > int(newest_id) else newest_id
             if existing is not None:
