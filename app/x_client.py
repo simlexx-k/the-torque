@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -23,6 +24,7 @@ class XPostBatch:
 
 class XClient:
     BASE_URL = "https://api.x.com/2"
+    MAX_TIMELINE_PAGES = 32
 
     def __init__(self, settings: Settings):
         if not settings.x_bearer_token:
@@ -67,7 +69,20 @@ class XClient:
         pagination_token: str | None = None
         initial_target = self.settings.initial_lookback_posts if since_id is None else None
 
-        for _ in range(self.settings.x_max_pages_per_poll):
+        if initial_target is not None:
+            required_pages = max(1, math.ceil(initial_target / 100))
+            page_limit = min(
+                self.MAX_TIMELINE_PAGES,
+                max(self.settings.x_max_pages_per_poll, required_pages),
+            )
+        else:
+            # Once a cursor exists, exhaust the available timeline window before
+            # advancing last_seen_post_id. Stopping after an arbitrary page cap
+            # and then moving the cursor to the newest id would permanently skip
+            # posts in the unfetched middle of a burst.
+            page_limit = self.MAX_TIMELINE_PAGES
+
+        for _ in range(page_limit):
             if initial_target is not None:
                 remaining = initial_target - len(posts)
                 if remaining <= 0:
@@ -109,6 +124,15 @@ class XClient:
                 break
             if initial_target is not None and len(posts) >= initial_target:
                 break
+
+        if pagination_token and initial_target is None:
+            # The endpoint only exposes the most recent 3,200 posts. Reaching
+            # this guard means the account produced more than that since our
+            # cursor, so advancing would hide a gap. Fail the source instead and
+            # preserve its existing cursor for operator intervention.
+            raise XAPIError(
+                "X timeline still has more than 3,200 posts after the current cursor; cursor was not advanced"
+            )
 
         if initial_target is not None and len(posts) > initial_target:
             posts = posts[:initial_target]
