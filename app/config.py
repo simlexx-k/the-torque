@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     api_docs_enabled: bool = False
 
     x_bearer_token: str = ""
+    # X_TARGET_USERNAMES is the preferred multi-source setting. The singular
+    # X_TARGET_USERNAME remains supported so existing VPS environments do not
+    # need an immediate configuration migration.
+    x_target_usernames: str = ""
     x_target_username: str = ""
     x_exclude_replies: bool = False
     x_exclude_retweets: bool = True
@@ -54,6 +58,15 @@ class Settings(BaseSettings):
     def normalize_username(cls, value: str) -> str:
         return value.strip().lstrip("@")
 
+    @field_validator("x_target_usernames")
+    @classmethod
+    def normalize_usernames(cls, value: str) -> str:
+        return ",".join(
+            item.strip().lstrip("@")
+            for item in value.split(",")
+            if item.strip().lstrip("@")
+        )
+
     @field_validator("ai_provider")
     @classmethod
     def validate_ai_provider(cls, value: str) -> str:
@@ -69,6 +82,20 @@ class Settings(BaseSettings):
         if value not in {"low", "high", "auto"}:
             raise ValueError("OPENAI_IMAGE_DETAIL must be low, high, or auto")
         return value
+
+    @property
+    def x_usernames(self) -> list[str]:
+        configured = self.x_target_usernames or self.x_target_username
+        result: list[str] = []
+        seen: set[str] = set()
+        for raw in configured.split(","):
+            username = raw.strip().lstrip("@")
+            key = username.casefold()
+            if not username or key in seen:
+                continue
+            seen.add(key)
+            result.append(username)
+        return result
 
     @property
     def ai_configured(self) -> bool:
