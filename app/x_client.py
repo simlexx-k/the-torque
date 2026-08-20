@@ -26,6 +26,12 @@ class XPostBatch:
 class XClient:
     BASE_URL = "https://api.x.com/2"
     MAX_TIMELINE_PAGES = 32
+    TWEET_FIELDS = (
+        "id,text,created_at,author_id,in_reply_to_user_id,conversation_id,"
+        "attachments,referenced_tweets,public_metrics"
+    )
+    EXPANSIONS = "attachments.media_keys,referenced_tweets.id"
+    MEDIA_FIELDS = "media_key,type,url,preview_image_url,width,height,alt_text"
 
     def __init__(self, settings: Settings):
         if not settings.x_bearer_token:
@@ -52,6 +58,21 @@ class XClient:
             )
         return response.json()
 
+    @staticmethod
+    def _collect_includes(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        media_by_key: dict[str, dict[str, Any]] = {}
+        referenced_posts_by_id: dict[str, dict[str, Any]] = {}
+        includes = payload.get("includes", {})
+        for media in includes.get("media", []):
+            key = media.get("media_key")
+            if key:
+                media_by_key[key] = media
+        for referenced_post in includes.get("tweets", []):
+            post_id = referenced_post.get("id")
+            if post_id:
+                referenced_posts_by_id[post_id] = referenced_post
+        return media_by_key, referenced_posts_by_id
+
     def resolve_user(self, username: str) -> dict[str, Any]:
         payload = self._get(
             f"/users/by/username/{username}",
@@ -63,6 +84,23 @@ class XClient:
         if data.get("protected"):
             raise XAPIError(f"X user @{username} is protected; public app-only ingestion is unavailable")
         return data
+
+    def fetch_post(self, post_id: str) -> XPostBatch:
+        payload = self._get(
+            f"/tweets/{post_id}",
+            params={
+                "tweet.fields": self.TWEET_FIELDS,
+                "expansions": self.EXPANSIONS,
+                "media.fields": self.MEDIA_FIELDS,
+            },
+        )
+        data = payload.get("data")
+        media_by_key, referenced = self._collect_includes(payload)
+        return XPostBatch(
+            posts=[data] if isinstance(data, dict) else [],
+            media_by_key=media_by_key,
+            referenced_posts_by_id=referenced,
+        )
 
     def fetch_user_posts(self, user_id: str, since_id: str | None = None) -> XPostBatch:
         posts: list[dict[str, Any]] = []
@@ -95,12 +133,9 @@ class XClient:
 
             params: dict[str, Any] = {
                 "max_results": max_results,
-                "tweet.fields": (
-                    "id,text,created_at,author_id,in_reply_to_user_id,conversation_id,"
-                    "attachments,referenced_tweets,public_metrics"
-                ),
-                "expansions": "attachments.media_keys,referenced_tweets.id",
-                "media.fields": "media_key,type,url,preview_image_url,width,height,alt_text",
+                "tweet.fields": self.TWEET_FIELDS,
+                "expansions": self.EXPANSIONS,
+                "media.fields": self.MEDIA_FIELDS,
             }
             excluded: list[str] = []
             if self.settings.x_exclude_replies:
@@ -116,15 +151,9 @@ class XClient:
 
             payload = self._get(f"/users/{user_id}/tweets", params=params)
             posts.extend(payload.get("data", []))
-            includes = payload.get("includes", {})
-            for media in includes.get("media", []):
-                key = media.get("media_key")
-                if key:
-                    media_by_key[key] = media
-            for referenced_post in includes.get("tweets", []):
-                post_id = referenced_post.get("id")
-                if post_id:
-                    referenced_posts_by_id[post_id] = referenced_post
+            page_media, page_referenced = self._collect_includes(payload)
+            media_by_key.update(page_media)
+            referenced_posts_by_id.update(page_referenced)
 
             pagination_token = payload.get("meta", {}).get("next_token")
             if not pagination_token:
