@@ -9,7 +9,10 @@ from app.config import Settings
 
 
 class XAPIError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None, rate_limit_reset: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.rate_limit_reset = rate_limit_reset
 
 
 @dataclass(slots=True)
@@ -38,7 +41,12 @@ class XClient:
         response = self.client.get(path, params=params)
         if response.status_code >= 400:
             detail = response.text[:1000]
-            raise XAPIError(f"X API {response.status_code}: {detail}")
+            reset = response.headers.get("x-rate-limit-reset")
+            raise XAPIError(
+                f"X API {response.status_code}: {detail}",
+                status_code=response.status_code,
+                rate_limit_reset=reset,
+            )
         return response.json()
 
     def resolve_user(self, username: str) -> dict[str, Any]:
@@ -57,11 +65,23 @@ class XClient:
         posts: list[dict[str, Any]] = []
         media_by_key: dict[str, dict[str, Any]] = {}
         pagination_token: str | None = None
+        initial_target = self.settings.initial_lookback_posts if since_id is None else None
 
         for _ in range(self.settings.x_max_pages_per_poll):
+            if initial_target is not None:
+                remaining = initial_target - len(posts)
+                if remaining <= 0:
+                    break
+                max_results = min(100, max(5, remaining))
+            else:
+                max_results = 100
+
             params: dict[str, Any] = {
-                "max_results": self.settings.initial_lookback_posts if since_id is None else 100,
-                "tweet.fields": "id,text,created_at,conversation_id,attachments,referenced_tweets,public_metrics",
+                "max_results": max_results,
+                "tweet.fields": (
+                    "id,text,created_at,author_id,in_reply_to_user_id,conversation_id,"
+                    "attachments,referenced_tweets,public_metrics"
+                ),
                 "expansions": "attachments.media_keys,referenced_tweets.id",
                 "media.fields": "media_key,type,url,preview_image_url,width,height,alt_text",
             }
@@ -85,7 +105,12 @@ class XClient:
                     media_by_key[key] = media
 
             pagination_token = payload.get("meta", {}).get("next_token")
-            if since_id is None or not pagination_token:
+            if not pagination_token:
                 break
+            if initial_target is not None and len(posts) >= initial_target:
+                break
+
+        if initial_target is not None and len(posts) > initial_target:
+            posts = posts[:initial_target]
 
         return XPostBatch(posts=posts, media_by_key=media_by_key)
