@@ -3,18 +3,18 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
+import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 import { Popover } from "radix-ui";
-import { Bell, BookmarkPlus, Filter, LayoutGrid, ListFilter, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
+import { Bell, BookmarkPlus, ChevronLeft, ChevronRight, Filter, LayoutGrid, ListFilter, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { listingCollectionKey } from "@/lib/listingRef";
 import { type SavedSearch, type SavedSearchFilters, useSavedSearches } from "@/lib/useSavedSearches";
 import VehicleCard from "@/components/VehicleCard";
 
 const statusOptions = ["all", "available", "reserved", "sold", "price_drop"] as const;
 const sortOptions = ["latest", "price-high", "price-low", "year", "mileage"] as const;
+const PAGE_SIZE = 48;
 
 const inventorySearchParams = {
   q: parseAsString.withDefault(""),
@@ -22,18 +22,20 @@ const inventorySearchParams = {
   make: parseAsString.withDefault("all"),
   body: parseAsString.withDefault("all"),
   sort: parseAsStringLiteral(sortOptions).withDefault("latest"),
+  page: parseAsInteger.withDefault(1),
 };
 
 export default function InventoryExplorer() {
-  const [{ q: query, status, make, body, sort }, setFilters] = useQueryStates(inventorySearchParams, {
+  const [{ q: query, status, make, body, sort, page }, setFilters] = useQueryStates(inventorySearchParams, {
     history: "replace",
     shallow: true,
   });
 
   const listingsQuery = useQuery({
-    queryKey: ["listings", "inventory"],
-    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=200"),
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const listings = listingsQuery.data ?? [];
@@ -65,10 +67,20 @@ export default function InventoryExplorer() {
     });
   }, [listings, query, status, make, body, sort]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const pageListings = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+    const values = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+    return Array.from(values).filter((value) => value >= 1 && value <= totalPages).sort((a, b) => a - b);
+  }, [currentPage, totalPages]);
+
   const activeFilters = [query, status !== "all" ? status : "", make !== "all" ? make : "", body !== "all" ? body : "", sort !== "latest" ? sort : ""].filter(Boolean).length;
   const currentSavedFilters: SavedSearchFilters = { q: query, status, make, body, sort };
 
-  const reset = () => setFilters({ q: null, status: null, make: null, body: null, sort: null });
+  const reset = () => setFilters({ q: null, status: null, make: null, body: null, sort: null, page: null });
+  const setPage = (nextPage: number) => setFilters({ page: nextPage <= 1 ? null : nextPage });
 
   const saveCurrentSearch = () => {
     const result = saveSearch(currentSavedFilters);
@@ -82,6 +94,7 @@ export default function InventoryExplorer() {
       make: saved.filters.make === "all" ? null : saved.filters.make,
       body: saved.filters.body === "all" ? null : saved.filters.body,
       sort: sortOptions.includes(saved.filters.sort as (typeof sortOptions)[number]) ? saved.filters.sort as (typeof sortOptions)[number] : "latest",
+      page: null,
     });
     markViewed(saved.id);
   };
@@ -96,7 +109,7 @@ export default function InventoryExplorer() {
         </div>
         <div className="page-hero-stat">
           <Sparkles size={18} />
-          <span><small>MATCHING VEHICLES</small><strong>{filtered.length.toString().padStart(2, "0")}</strong></span>
+          <span><small>MATCHING VEHICLES</small><strong>{filtered.length.toLocaleString("en-KE")}</strong></span>
         </div>
       </section>
 
@@ -140,13 +153,13 @@ export default function InventoryExplorer() {
         <div className="inventory-controls-grid">
           <label className="product-search-field">
             <Search size={18} />
-            <input value={query} onChange={(event) => setFilters({ q: event.target.value || null })} placeholder="Search make, model, variant or location…" />
-            {query && <button type="button" onClick={() => setFilters({ q: null })} aria-label="Clear search"><X size={15} /></button>}
+            <input value={query} onChange={(event) => setFilters({ q: event.target.value || null, page: null })} placeholder="Search make, model, variant or location…" />
+            {query && <button type="button" onClick={() => setFilters({ q: null, page: null })} aria-label="Clear search"><X size={15} /></button>}
           </label>
-          <label className="product-select"><Filter size={16} /><select value={status} onChange={(event) => setFilters({ status: event.target.value as (typeof statusOptions)[number] })}><option value="all">Any status</option><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="price_drop">Price drop</option></select></label>
-          <label className="product-select"><select value={make} onChange={(event) => setFilters({ make: event.target.value === "all" ? null : event.target.value })}><option value="all">Any make</option>{makes.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label className="product-select"><select value={body} onChange={(event) => setFilters({ body: event.target.value === "all" ? null : event.target.value })}><option value="all">Any body style</option>{bodies.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label className="product-select"><ListFilter size={16} /><select value={sort} onChange={(event) => setFilters({ sort: event.target.value as (typeof sortOptions)[number] })}><option value="latest">Recently added</option><option value="price-high">Price: high to low</option><option value="price-low">Price: low to high</option><option value="year">Newest year</option><option value="mileage">Lowest mileage</option></select></label>
+          <label className="product-select"><Filter size={16} /><select value={status} onChange={(event) => setFilters({ status: event.target.value as (typeof statusOptions)[number], page: null })}><option value="all">Any status</option><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="price_drop">Price drop</option></select></label>
+          <label className="product-select"><select value={make} onChange={(event) => setFilters({ make: event.target.value === "all" ? null : event.target.value, page: null })}><option value="all">Any make</option>{makes.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label className="product-select"><select value={body} onChange={(event) => setFilters({ body: event.target.value === "all" ? null : event.target.value, page: null })}><option value="all">Any body style</option>{bodies.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label className="product-select"><ListFilter size={16} /><select value={sort} onChange={(event) => setFilters({ sort: event.target.value as (typeof sortOptions)[number], page: null })}><option value="latest">Recently added</option><option value="price-high">Price: high to low</option><option value="price-low">Price: low to high</option><option value="year">Newest year</option><option value="mileage">Lowest mileage</option></select></label>
           <AnimatePresence>{activeFilters > 0 && <motion.button className="filter-reset" type="button" onClick={reset} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><X size={15} /> Reset all</motion.button>}</AnimatePresence>
         </div>
       </section>
@@ -154,19 +167,38 @@ export default function InventoryExplorer() {
       <section className="inventory-results-section">
         <div className="results-heading-row">
           <div><LayoutGrid size={17} /><strong>{filtered.length}</strong><span>vehicles</span></div>
-          <small>{listingsQuery.isFetching ? "Checking for new listings…" : `${listings.length} listings loaded`}</small>
+          <small>{listingsQuery.isFetching ? "Checking for new listings…" : `${listings.length.toLocaleString("en-KE")} listings loaded · page ${currentPage} of ${totalPages}`}</small>
         </div>
 
         {listingsQuery.isPending ? (
           <div className="vehicle-grid">{Array.from({ length: 8 }).map((_, index) => <div className="vehicle-card skeleton-card" key={index}><div/><span/><span/><span/></div>)}</div>
         ) : listingsQuery.error ? (
           <div className="product-state"><small>LISTINGS</small><h2>We couldn&apos;t load the vehicles.</h2><p>{listingsQuery.error instanceof Error ? listingsQuery.error.message : "Unable to load listings."}</p></div>
-        ) : filtered.length ? (
-          <motion.div className="vehicle-grid smart-vehicle-grid" layout>
-            <AnimatePresence mode="popLayout">
-              {filtered.map((listing, index) => <VehicleCard key={listingCollectionKey(listing)} listing={listing} index={index} />)}
-            </AnimatePresence>
-          </motion.div>
+        ) : pageListings.length ? (
+          <>
+            <motion.div className="vehicle-grid smart-vehicle-grid" layout>
+              <AnimatePresence mode="popLayout">
+                {pageListings.map((listing, index) => <VehicleCard key={listingCollectionKey(listing)} listing={listing} index={index} />)}
+              </AnimatePresence>
+            </motion.div>
+            {totalPages > 1 && (
+              <nav className="inventory-pagination" aria-label="Inventory pages">
+                <button type="button" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} aria-label="Previous listings page"><ChevronLeft size={16}/> Previous</button>
+                <div>
+                  {pageNumbers.map((pageNumber, index) => {
+                    const previous = pageNumbers[index - 1];
+                    return (
+                      <span key={pageNumber}>
+                        {previous && pageNumber - previous > 1 && <i aria-hidden="true">…</i>}
+                        <button type="button" className={pageNumber === currentPage ? "active" : ""} aria-current={pageNumber === currentPage ? "page" : undefined} onClick={() => setPage(pageNumber)}>{pageNumber}</button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages}>Next <ChevronRight size={16}/></button>
+              </nav>
+            )}
+          </>
         ) : (
           <div className="product-state"><small>NO MATCHES</small><h2>No vehicles match those filters.</h2><p>Reset the filters or broaden the search.</p><button type="button" className="product-primary-button" onClick={reset}>Reset filters</button></div>
         )}
