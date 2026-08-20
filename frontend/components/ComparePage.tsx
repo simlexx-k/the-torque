@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, CarFront, GitCompareArrows, Plus, Trash2, X } from "lucide-react";
 import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { formatNumber, formatPrice, vehicleTitle } from "@/lib/format";
 import {
   listingCollectionKey,
@@ -31,9 +31,10 @@ const rows: { label: string; value: (listing: Listing) => string }[] = [
 export default function ComparePage() {
   const { compare, toggleCompare, clearCompare } = useVehicleCollections();
   const listingsQuery = useQuery({
-    queryKey: ["listings", "compare"],
-    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=200"),
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const selected = useMemo(
