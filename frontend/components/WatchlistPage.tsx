@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bookmark, GitCompareArrows, Search, Trash2 } from "lucide-react";
-import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { listingCollectionKeys } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
 import VehicleCard from "@/components/VehicleCard";
@@ -13,9 +12,10 @@ import VehicleCard from "@/components/VehicleCard";
 export default function WatchlistPage() {
   const { saved, clearSaved } = useVehicleCollections();
   const listingsQuery = useQuery({
-    queryKey: ["listings", "watchlist"],
-    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=200"),
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const watched = useMemo(

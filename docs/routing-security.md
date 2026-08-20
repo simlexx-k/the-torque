@@ -52,9 +52,12 @@ Normal public production routes are limited to:
 ```text
 GET /api/torque/listings
 GET /api/torque/listings/<public_id>
+GET /api/torque/listings/<public_id>/history
 ```
 
-Operator data routes (`overview`, `posts`, `status`) return 404 in production unless `TORQUE_PUBLIC_OPERATOR_ROUTES=true` is explicitly set. The `/system` and `/signals` pages use the same production gate.
+The listings collection accepts only the bounded/read-only query keys `limit`, `page` and `source`. The backend keeps the original array response for callers that omit `page`; callers using `page` receive a pagination envelope with `items` and pagination metadata. This permits catalogue traversal without reopening arbitrary proxy query forwarding.
+
+Operator data routes (`overview`, `posts`, `status`) return 404 in production unless `TORQUE_PUBLIC_OPERATOR_ROUTES=true` is explicitly set. When enabled, the posts collection uses the same `limit`, `page` and `source` query allowlist. The `/system` and `/signals` pages use the same production gate.
 
 Malformed or unexpectedly nested paths return 404 before they are forwarded to FastAPI.
 
@@ -111,4 +114,4 @@ Only enable API docs on a trusted development/operator deployment.
 
 Opaque identifiers reduce trivial sequential enumeration; they are not an authorization mechanism. Public listing data is intentionally readable, while operator/admin data must remain behind an authenticated boundary.
 
-Use Cloudflare Access on the API hostname, Cloudflare/Vercel rate limiting for abnormal request volumes, bounded API query limits, server-side secret storage, and the existing admin-key protection for mutation/retry endpoints.
+Use Cloudflare Access on the API hostname, Cloudflare/Vercel rate limiting for abnormal request volumes, bounded per-request API limits, server-side secret storage, and the existing admin-key protection for mutation/retry endpoints. Pagination removes the former 100/200-record frontend ceilings without removing the per-request bound of 200 records.

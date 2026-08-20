@@ -6,6 +6,25 @@ export type MediaItem = {
   height?: number | null;
 };
 
+export type SourceRef = {
+  platform: string;
+  username: string;
+};
+
+export type PaginationMeta = {
+  page: number;
+  page_size: number;
+  total: number;
+  pages: number;
+  has_previous: boolean;
+  has_next: boolean;
+};
+
+export type PaginatedResponse<T> = {
+  items: T[];
+  pagination: PaginationMeta;
+};
+
 export type FeatureEvidence = {
   name?: string;
   value?: string | number | boolean | null;
@@ -44,6 +63,14 @@ export type ListingHistory = {
   observations: ListingHistoryObservation[];
 };
 
+export type ThreadPost = {
+  x_post_id: string;
+  text: string;
+  created_at?: string | null;
+  x_url: string;
+  media: MediaItem[];
+};
+
 export type Listing = {
   // Numeric ids remain in the API for backwards compatibility, but the public
   // web app routes exclusively through public_id when the backend provides it.
@@ -52,6 +79,7 @@ export type Listing = {
   public_url?: string | null;
   post_id: number;
   x_url: string;
+  source?: SourceRef;
   make?: string | null;
   model?: string | null;
   generation?: string | null;
@@ -80,6 +108,10 @@ export type Listing = {
     classification: string;
     ai_status: string;
     media: MediaItem[];
+    thread_post_count?: number;
+    thread_text?: string;
+    thread_media?: MediaItem[];
+    thread_posts?: ThreadPost[];
   };
 };
 
@@ -96,11 +128,23 @@ export type SignalPost = {
   ai_error?: string | null;
   listing_count: number;
   x_url: string;
+  source?: SourceRef;
+  thread_root_x_post_id?: string | null;
   media: MediaItem[];
+};
+
+export type TorqueSourceStatus = {
+  username: string;
+  x_user_id?: string | null;
+  last_seen_post_id?: string | null;
+  enabled: boolean;
 };
 
 export type TorqueStatus = {
   target?: string | null;
+  targets?: string[];
+  source_count?: number;
+  sources?: TorqueSourceStatus[];
   x_user_id?: string | null;
   last_seen_post_id?: string | null;
   source_enabled?: boolean | null;
@@ -137,5 +181,8 @@ export type IngestResult = {
   listings_created?: number;
   retried_posts?: number;
   recovered_posts?: number;
+  source_count?: number;
+  failed_sources?: number;
+  sources?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 };

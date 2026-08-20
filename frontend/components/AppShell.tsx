@@ -20,8 +20,7 @@ import {
   X,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { vehicleTitle } from "@/lib/format";
 import { listingCollectionKey, listingHref, listingShortReference } from "@/lib/listingRef";
 import { useVehicleCollections } from "@/lib/useVehicleCollections";
@@ -51,8 +50,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const year = new Date().getFullYear();
 
   const listingsQuery = useQuery({
-    queryKey: ["listings", "command-palette"],
-    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=100"),
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
     staleTime: 60_000,
   });
 

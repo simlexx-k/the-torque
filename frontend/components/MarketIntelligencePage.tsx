@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BadgeDollarSign, CarFront, Clock3, Database, Gauge, TrendingUp } from "lucide-react";
-import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { formatNumber, formatPrice, formatRelativeTime } from "@/lib/format";
 
 function median(values: number[]) {
@@ -17,7 +16,12 @@ function median(values: number[]) {
 export default function MarketIntelligencePage() {
   // The public market page intentionally derives its summary from the public
   // listing payload instead of requesting the backend operations overview.
-  const listingsQuery = useQuery({ queryKey: ["listings", "market"], queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=200"), refetchInterval: 60_000 });
+  const listingsQuery = useQuery({
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
   const listings = listingsQuery.data ?? [];
 
   const snapshot = useMemo(() => {
