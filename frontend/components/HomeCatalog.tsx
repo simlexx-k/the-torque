@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { Listing } from "@/lib/types";
-import { fetchJson } from "@/lib/api";
+import { fetchAllListings } from "@/lib/catalog";
 import { listingCollectionKey } from "@/lib/listingRef";
 import VehicleCard from "./VehicleCard";
 
@@ -39,9 +39,10 @@ export default function HomeCatalog() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
 
   const listingsQuery = useQuery({
-    queryKey: ["listings", "home-catalog"],
-    queryFn: () => fetchJson<Listing[]>("/api/torque/listings?limit=100"),
+    queryKey: ["listings", "all-pages"],
+    queryFn: () => fetchAllListings(),
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const listings = listingsQuery.data ?? [];
